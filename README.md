@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD033 MD036 MD032 -->
-# Codex /pet 用量伴随层
+# Codex /pet 剩余用量伴随层
 
 > 极简 Windows 悬浮层：鼠标移到 Codex Desktop 的 `/pet` 宠物身上时，弹出一个小卡片，实时显示你的剩余用量。
 

@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD033 MD036 MD032 -->
-# Codex `/pet` Usage Companion Overlay
+# Codex `/pet` Remaining Usage Companion Overlay
 
 > A minimalist Windows overlay: hover your mouse over the Codex Desktop `/pet` mascot and a small card pops up showing your remaining usage in real time.
 
