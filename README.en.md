@@ -50,6 +50,7 @@ Written from scratch, **does not modify Codex**. It only reads Codex's local sta
 1. Open Codex Desktop, type `/pet` and press Enter — the pet appears.
 2. Hover the mouse over the pet — a dark card pops up showing the remaining percentage and the refresh countdown.
 3. **Card visible = success** 🎉 Drag the pet and the card follows it.
+4. Want the UI in the other language? Press `Ctrl+Alt+Shift+L` to toggle Chinese ⇄ English (`7天窗口` ⇄ `Weekly`) — your choice is remembered.
 
 > Autostart at login? Double-click `InstallStartup.bat`. Stop it? Double-click `Stop.bat`.
 
