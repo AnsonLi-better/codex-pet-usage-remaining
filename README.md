@@ -32,11 +32,11 @@
 
 ## 🚀 快速开始（新手也能 3 分钟搞定）
 
-> **一句话版**：把下面 `AGENT_SETUP.md` 的链接丢给你的 AI 助手即可自动装好；想自己动手就：下载 ZIP → 解压 → 双击 `Start.bat` → 悬停宠物。
+> **一句话版**：把下面 `AGENT_SETUP.md` 的链接丢给你的 Agent 即可自动装好；想自己动手就：下载 ZIP → 解压 → 双击 `Start.bat` → 悬停宠物。
 
-### 方式一：让 AI 助手帮你装（推荐）
+### 方式一：让 Agent 帮你装（推荐）
 
-已经有能操作电脑的 AI 助手（Codex / Claude）？把下面这个**链接**发给它，它会自己下载、自检、启动，并问你需不需要开机自启：
+已经有能操作电脑的 Agent（Codex / Claude）？把下面这个**链接**发给它，它会自己下载、自检、启动，并问你需不需要开机自启：
 
 ```text
 https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md

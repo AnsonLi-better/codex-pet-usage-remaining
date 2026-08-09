@@ -32,11 +32,11 @@ Written from scratch, **does not modify Codex**. It only reads Codex's local sta
 
 ## 🚀 Quick start (works for absolute beginners)
 
-> **In one line**: hand your AI assistant the `AGENT_SETUP.md` link below and it sets everything up; or do it yourself: download the ZIP → extract → double-click `Start.bat` → hover the pet.
+> **In one line**: hand your Agent the `AGENT_SETUP.md` link below and it sets everything up; or do it yourself: download the ZIP → extract → double-click `Start.bat` → hover the pet.
 
-### Option 1: Let an AI assistant do it (recommended)
+### Option 1: Let an Agent do it (recommended)
 
-Already using an agent that can run commands on your PC (Codex / Claude)? Hand it the **link** below — it will download, verify, launch, and ask whether you want autostart:
+Already using an Agent that can run commands on your PC (Codex / Claude)? Hand it the **link** below — it will download, verify, launch, and ask whether you want autostart:
 
 ```text
 https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
