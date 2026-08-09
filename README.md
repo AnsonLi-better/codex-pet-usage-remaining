@@ -61,6 +61,9 @@ https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/
 4. 想用英文界面？按 `Ctrl+Alt+Shift+L` 一键切换中 / 英文（`7天窗口` ⇄ `Weekly`），选择会自动记住
 
 > 想开机自启：双击 `InstallStartup.bat`。想关掉：双击 `Stop.bat`。
+>
+> 💡 **文件夹放哪里都行**（桌面、下载、D 盘随意）：脚本按自己所在位置运行，运行时文件写在 `%LOCALAPPDATA%\CodexPetUsageOverlay`，不会在你的文件夹里留东西。
+> ⚠️ **唯一注意**：装好开机自启后就别再移动文件夹，否则自启会失效；移动后重新双击 `InstallStartup.bat` 即可。
 
 ### 方式三：用命令行（熟手）
 

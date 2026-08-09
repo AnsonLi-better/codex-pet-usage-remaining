@@ -61,6 +61,9 @@ https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/
 4. Want the UI in the other language? Press `Ctrl+Alt+Shift+L` to toggle Chinese ⇄ English (`7天窗口` ⇄ `Weekly`) — your choice is remembered.
 
 > Autostart at login? Double-click `InstallStartup.bat`. Stop it? Double-click `Stop.bat`.
+>
+> 💡 **You can put the folder anywhere** (Desktop, Downloads, D:\...): the script locates itself by its own path, and runtime files live in `%LOCALAPPDATA%\CodexPetUsageOverlay` — nothing is written to your folder.
+> ⚠️ **One caveat**: once you install autostart, don't move the folder afterwards, or autostart will break; just double-click `InstallStartup.bat` again after moving.
 
 ### Option 3: Command line (for the experienced)
 
