@@ -1,4 +1,4 @@
-<!-- markdownlint-disable MD033 -->
+<!-- markdownlint-disable MD033 MD036 MD032 -->
 # Codex `/pet` Usage Companion Overlay
 
 > A minimalist Windows overlay: hover your mouse over the Codex Desktop `/pet` mascot and a small card pops up showing your remaining usage in real time.
@@ -30,20 +30,43 @@ Written from scratch, **does not modify Codex**. It only reads Codex's local sta
 - [Codex Desktop](https://openai.com/codex/) (signed in) with `/pet` open
 - **Python** (optional): only needed for the local-log fallback when the live API is down
 
-## 🚀 Quick start
+## 🚀 Quick start (works for absolute beginners)
 
-```text
-1. Download / clone this repository
-2. Double-click Start.bat
-3. Hover your mouse over the Codex pet — the overlay appears
-```
+> **In one line**: download the ZIP → extract → double-click `Start.bat` → hover the Codex pet.
 
-To stop: double-click `Stop.bat`. To autostart at login: double-click `InstallStartup.bat`.
+### Option 1: Manual install (recommended for beginners)
 
-Want an AI assistant to set it up for you? Hand your Codex / Claude the **link** below — it will fetch the guide and handle download, verification, launch and optional autostart by itself:
+**Step 1 · Download**
+1. Open this repository's page and click the green `Code` button (top right).
+2. Click `Download ZIP` in the dropdown.
+3. When the download finishes, right-click the ZIP and choose `Extract All…` to any folder (e.g. your Downloads folder).
+
+**Step 2 · Start**
+1. Open the extracted folder (its name looks like `codex-pet-usage-remaining-main`).
+2. **Double-click `Start.bat`.**
+3. If Windows shows a blue "Windows protected your PC" dialog: click `More info` → `Run anyway` (it only appears because the file came from the internet — the script is safe).
+
+**Step 3 · See it work**
+1. Open Codex Desktop, type `/pet` and press Enter — the pet appears.
+2. Hover the mouse over the pet — a dark card pops up showing the remaining percentage and the refresh countdown.
+3. **Card visible = success** 🎉 Drag the pet and the card follows it.
+
+> Autostart at login? Double-click `InstallStartup.bat`. Stop it? Double-click `Stop.bat`.
+
+### Option 2: Let an AI assistant do it
+
+Already using an agent that can run commands on your PC (Codex / Claude)? Hand it the **link** below — it will download, verify, launch, and ask whether you want autostart:
 
 ```text
 https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
+```
+
+### Option 3: Command line (for the experienced)
+
+If you're comfortable with PowerShell, just run the command below; see the "Commands" section for the full list.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start
 ```
 
 ## 🧭 Commands

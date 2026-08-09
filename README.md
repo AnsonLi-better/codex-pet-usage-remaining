@@ -1,4 +1,4 @@
-<!-- markdownlint-disable MD033 -->
+<!-- markdownlint-disable MD033 MD036 MD032 -->
 # Codex /pet 用量伴随层
 
 > 极简 Windows 悬浮层：鼠标移到 Codex Desktop 的 `/pet` 宠物身上时，弹出一个小卡片，实时显示你的剩余用量。
@@ -30,20 +30,43 @@
 - [Codex Desktop](https://openai.com/codex/)（已登录），并打开 `/pet`
 - **Python**（可选）：live 接口不可用时，用于读取本地日志兜底；没有 Python 时只是少了这一层兜底
 
-## 🚀 快速开始
+## 🚀 快速开始（新手也能 3 分钟搞定）
 
-```text
-1. 下载并解压本仓库（或 git clone）
-2. 双击 Start.bat
-3. 鼠标移到 Codex 宠物身上 → 出现悬浮层
-```
+> **一句话版**：下载 ZIP → 解压 → 双击 `Start.bat` → 鼠标移到 Codex 宠物身上。
 
-想关掉：双击 `Stop.bat`。想开机自启：双击 `InstallStartup.bat`。
+### 方式一：手动安装（推荐新手）
 
-想让 AI 助手帮你装？把下面这个**链接**发给你的 Codex / Claude，它会自己读取文档并按步骤完成下载、验证、启动（可选开机自启）：
+**第 1 步 · 下载**
+1. 打开本仓库页面，点右上角绿色的 `Code` 按钮
+2. 在下拉菜单里点 `Download ZIP`
+3. 下载完成后，右键这个压缩包 → 选 `全部解压`，解压到任意位置（比如"下载"文件夹）
+
+**第 2 步 · 启动**
+1. 打开解压出来的文件夹（名字类似 `codex-pet-usage-remaining-main`）
+2. **双击 `Start.bat`**
+3. 如果弹出蓝色提示"Windows 已保护你的电脑"：点 `更多信息` → `仍要运行`（只是因为文件来自网上下载，脚本是安全的）
+
+**第 3 步 · 看效果**
+1. 打开 Codex Desktop，输入 `/pet` 回车 → 宠物出现在屏幕上
+2. 把鼠标移到宠物身上 → 弹出深色小卡片，显示剩余百分比和刷新倒计时
+3. **看到卡片 = 成功** 🎉 拖动宠物，卡片会跟着移动
+
+> 想开机自启：双击 `InstallStartup.bat`。想关掉：双击 `Stop.bat`。
+
+### 方式二：让 AI 助手帮你装
+
+已经有能操作电脑的 AI 助手（Codex / Claude）？把下面这个**链接**发给它，它会自己下载、自检、启动，并问你需不需要开机自启：
 
 ```text
 https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
+```
+
+### 方式三：用命令行（熟手）
+
+会打开 PowerShell 的，直接运行下面的命令即可；完整命令见下文"命令"一节。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start
 ```
 
 ## 🧭 命令
