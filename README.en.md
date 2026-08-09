@@ -40,7 +40,11 @@ Written from scratch, **does not modify Codex**. It only reads Codex's local sta
 
 To stop: double-click `Stop.bat`. To autostart at login: double-click `InstallStartup.bat`.
 
-Want an AI assistant to set it up for you? Copy [AGENT_SETUP.md](AGENT_SETUP.md) to your Codex / Claude — it will handle download, install, launch and verification automatically.
+Want an AI assistant to set it up for you? Hand your Codex / Claude the **link** below — it will fetch the guide and handle download, verification, launch and optional autostart by itself:
+
+```text
+https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
+```
 
 ## 🧭 Commands
 

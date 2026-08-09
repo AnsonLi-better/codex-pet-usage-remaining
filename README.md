@@ -40,7 +40,11 @@
 
 想关掉：双击 `Stop.bat`。想开机自启：双击 `InstallStartup.bat`。
 
-想让 AI 助手帮你装？把 [AGENT_SETUP.md](AGENT_SETUP.md) 整段复制给你的 Codex / Claude 即可，它会自动完成下载、安装、启动与验证。
+想让 AI 助手帮你装？把下面这个**链接**发给你的 Codex / Claude，它会自己读取文档并按步骤完成下载、验证、启动（可选开机自启）：
+
+```text
+https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
+```
 
 ## 🧭 命令
 
