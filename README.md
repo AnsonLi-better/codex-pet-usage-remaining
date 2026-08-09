@@ -32,9 +32,17 @@
 
 ## 🚀 快速开始（新手也能 3 分钟搞定）
 
-> **一句话版**：下载 ZIP → 解压 → 双击 `Start.bat` → 鼠标移到 Codex 宠物身上。
+> **一句话版**：把下面 `AGENT_SETUP.md` 的链接丢给你的 AI 助手即可自动装好；想自己动手就：下载 ZIP → 解压 → 双击 `Start.bat` → 悬停宠物。
 
-### 方式一：手动安装（推荐新手）
+### 方式一：让 AI 助手帮你装（推荐）
+
+已经有能操作电脑的 AI 助手（Codex / Claude）？把下面这个**链接**发给它，它会自己下载、自检、启动，并问你需不需要开机自启：
+
+```text
+https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
+```
+
+### 方式二：手动安装
 
 **第 1 步 · 下载**
 1. 打开本仓库页面，点右上角绿色的 `Code` 按钮
@@ -53,14 +61,6 @@
 4. 想用英文界面？按 `Ctrl+Alt+Shift+L` 一键切换中 / 英文（`7天窗口` ⇄ `Weekly`），选择会自动记住
 
 > 想开机自启：双击 `InstallStartup.bat`。想关掉：双击 `Stop.bat`。
-
-### 方式二：让 AI 助手帮你装
-
-已经有能操作电脑的 AI 助手（Codex / Claude）？把下面这个**链接**发给它，它会自己下载、自检、启动，并问你需不需要开机自启：
-
-```text
-https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
-```
 
 ### 方式三：用命令行（熟手）
 

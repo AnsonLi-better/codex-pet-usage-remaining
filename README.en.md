@@ -32,9 +32,17 @@ Written from scratch, **does not modify Codex**. It only reads Codex's local sta
 
 ## 🚀 Quick start (works for absolute beginners)
 
-> **In one line**: download the ZIP → extract → double-click `Start.bat` → hover the Codex pet.
+> **In one line**: hand your AI assistant the `AGENT_SETUP.md` link below and it sets everything up; or do it yourself: download the ZIP → extract → double-click `Start.bat` → hover the pet.
 
-### Option 1: Manual install (recommended for beginners)
+### Option 1: Let an AI assistant do it (recommended)
+
+Already using an agent that can run commands on your PC (Codex / Claude)? Hand it the **link** below — it will download, verify, launch, and ask whether you want autostart:
+
+```text
+https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
+```
+
+### Option 2: Manual install
 
 **Step 1 · Download**
 1. Open this repository's page and click the green `Code` button (top right).
@@ -53,14 +61,6 @@ Written from scratch, **does not modify Codex**. It only reads Codex's local sta
 4. Want the UI in the other language? Press `Ctrl+Alt+Shift+L` to toggle Chinese ⇄ English (`7天窗口` ⇄ `Weekly`) — your choice is remembered.
 
 > Autostart at login? Double-click `InstallStartup.bat`. Stop it? Double-click `Stop.bat`.
-
-### Option 2: Let an AI assistant do it
-
-Already using an agent that can run commands on your PC (Codex / Claude)? Hand it the **link** below — it will download, verify, launch, and ask whether you want autostart:
-
-```text
-https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
-```
 
 ### Option 3: Command line (for the experienced)
 
