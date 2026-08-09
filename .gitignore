@@ -1,0 +1,22 @@
+# OS
+Thumbs.db
+Desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.user
+
+# PowerShell transient output
+*.tmp
+*.old
+
+# Overlay runtime files (created under %LOCALAPPDATA%, but just in case)
+overlay.pid
+overlay.log
+mode.txt
+
+# Local helper scripts used during development
+_gen_*.ps1
+_render_*.ps1
+_apply_*.ps1
