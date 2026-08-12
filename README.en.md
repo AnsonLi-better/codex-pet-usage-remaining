@@ -122,7 +122,7 @@ powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start -Usage
 CodexPetUsageOverlay.ps1    main script (all logic)
 Install.bat / Uninstall.bat
 Start.bat / Stop.bat / Status.bat
-InstallTask.bat / InstallStartup.bat / UninstallStartup.bat
+InstallStartup.bat / UninstallStartup.bat
 assets/                     preview images
 README.md / README.en.md    docs
 LICENSE
