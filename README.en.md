@@ -32,7 +32,7 @@ Written from scratch, **does not modify Codex**. It only reads Codex's local sta
 
 ## 🚀 Quick start (works for absolute beginners)
 
-> **In one line**: hand your Agent the `AGENT_SETUP.md` link below and it sets everything up; or do it yourself: download the ZIP → extract → double-click `Start.bat` → hover the pet.
+> **In one line**: download the ZIP → extract → double-click `Install.bat` → open Codex and hover the pet. The installer starts the overlay immediately and enables automatic startup at Windows sign-in.
 
 ### Option 1: Let an Agent do it (recommended)
 
@@ -49,9 +49,9 @@ https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/
 2. Click `Download ZIP` in the dropdown.
 3. When the download finishes, right-click the ZIP and choose `Extract All…` to any folder (e.g. your Downloads folder).
 
-**Step 2 · Start**
+**Step 2 · Install and start**
 1. Open the extracted folder (its name looks like `codex-pet-usage-remaining-main`).
-2. **Double-click `Start.bat`.**
+2. **Double-click `Install.bat`.** This installs automatic startup and starts the overlay immediately.
 3. If Windows shows a blue "Windows protected your PC" dialog: click `More info` → `Run anyway` (it only appears because the file came from the internet — the script is safe).
 
 **Step 3 · See it work**
@@ -60,10 +60,10 @@ https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/
 3. **Card visible = success** 🎉 Drag the pet and the card follows it.
 4. Want the UI in the other language? Press `Ctrl+Alt+Shift+L` to toggle Chinese ⇄ English (`7天窗口` ⇄ `Weekly`) — your choice is remembered.
 
-> Autostart at login? Double-click `InstallStartup.bat`. Stop it? Double-click `Stop.bat`.
+> Want to stop it? Double-click `Stop.bat`. To remove automatic startup, double-click `Uninstall.bat`.
 >
 > 💡 **You can put the folder anywhere** (Desktop, Downloads, D:\...): the script locates itself by its own path, and runtime files live in `%LOCALAPPDATA%\CodexPetUsageOverlay` — nothing is written to your folder.
-> ⚠️ **One caveat**: once you install autostart, don't move the folder afterwards, or autostart will break; just double-click `InstallStartup.bat` again after moving.
+> ⚠️ **One caveat**: once you install autostart, don't move the folder afterwards, or autostart will break; just double-click `Install.bat` again after moving.
 
 ### Option 3: Command line (for the experienced)
 
@@ -81,8 +81,10 @@ powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start
 | `Stop` | Stop the overlay |
 | `Status` | Show running / autostart status and the latest log line |
 | `SelfTest` | Self-check: script parsing, logic functions, Win32 C# class compilation |
-| `InstallStartup` | Install autostart for the current user |
-| `UninstallStartup` | Remove autostart |
+| `InstallTask` | Install automatic startup and task integration |
+| `UninstallTask` | Remove automatic startup |
+| `InstallStartup` | Legacy registry/startup-folder autostart |
+| `UninstallStartup` | Remove legacy autostart |
 | `FindPet` | Diagnose pet-window detection (lists Codex processes, candidates, picked window) |
 
 Double-click the `.bat` files or run manually:
@@ -118,8 +120,9 @@ powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start -Usage
 
 ```text
 CodexPetUsageOverlay.ps1    main script (all logic)
+Install.bat / Uninstall.bat
 Start.bat / Stop.bat / Status.bat
-InstallStartup.bat / UninstallStartup.bat
+InstallTask.bat / InstallStartup.bat / UninstallStartup.bat
 assets/                     preview images
 README.md / README.en.md    docs
 LICENSE

@@ -22,7 +22,7 @@
 - **7 天窗口**：显示 `secondary_window` 的剩余用量。
 - **中英切换**：`Ctrl+Alt+Shift+L` 一键切换中文 / English（`7天窗口` ⇄ `Weekly`），选择会记住。
 - **多级兜底**：live 接口 → 本地日志 → 显示不可用，接口抖动不影响使用。
-- **开机自启**（可选）：写入当前用户登录启动项 + Startup 快捷方式。
+- **开机自启**（可选）：双击 `Install.bat` 装好任务计划程序，登录时自动启动。
 
 ## 📦 前置条件
 
@@ -32,7 +32,7 @@
 
 ## 🚀 快速开始（新手也能 3 分钟搞定）
 
-> **一句话版**：把下面 `AGENT_SETUP.md` 的链接丢给你的 Agent 即可自动装好；想自己动手就：下载 ZIP → 解压 → 双击 `Start.bat` → 悬停宠物。
+> **一句话版**：把下面 `AGENT_SETUP.md` 的链接丢给你的 Agent 即可自动装好；想自己动手就：下载 ZIP → 解压 → 双击 `Install.bat`（装自启并立即启动）→ 悬停宠物。
 
 ### 方式一：让 Agent 帮你装（推荐）
 
@@ -49,9 +49,9 @@ https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/
 2. 在下拉菜单里点 `Download ZIP`
 3. 下载完成后，右键这个压缩包 → 选 `全部解压`，解压到任意位置（比如"下载"文件夹）
 
-**第 2 步 · 启动**
+**第 2 步 · 安装并启动**
 1. 打开解压出来的文件夹（名字类似 `codex-pet-usage-remaining-main`）
-2. **双击 `Start.bat`**
+2. **双击 `Install.bat`** —— 它会装好开机自启，并立即启动悬浮层
 3. 如果弹出蓝色提示"Windows 已保护你的电脑"：点 `更多信息` → `仍要运行`（只是因为文件来自网上下载，脚本是安全的）
 
 **第 3 步 · 看效果**
@@ -60,10 +60,10 @@ https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/
 3. **看到卡片 = 成功** 🎉 拖动宠物，卡片会跟着移动
 4. 想用英文界面？按 `Ctrl+Alt+Shift+L` 一键切换中 / 英文（`7天窗口` ⇄ `Weekly`），选择会自动记住
 
-> 想开机自启：双击 `InstallStartup.bat`。想关掉：双击 `Stop.bat`。
+> 想停掉：双击 `Stop.bat`。想取消开机自启：双击 `Uninstall.bat`。
 >
 > 💡 **文件夹放哪里都行**（桌面、下载、D 盘随意）：脚本按自己所在位置运行，运行时文件写在 `%LOCALAPPDATA%\CodexPetUsageOverlay`，不会在你的文件夹里留东西。
-> ⚠️ **唯一注意**：装好开机自启后就别再移动文件夹，否则自启会失效；移动后重新双击 `InstallStartup.bat` 即可。
+> ⚠️ **唯一注意**：装好开机自启后就别再移动文件夹，否则自启会失效；移动后重新双击 `Install.bat` 即可。
 
 ### 方式三：用命令行（熟手）
 
@@ -81,8 +81,10 @@ powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start
 | `Stop` | 停止悬浮层 |
 | `Status` | 显示运行状态、开机自启状态、最新日志 |
 | `SelfTest` | 自检：脚本解析、逻辑函数、Win32 C# 类编译 |
-| `InstallStartup` | 安装当前用户开机自启 |
-| `UninstallStartup` | 取消开机自启 |
+| `InstallTask` | 安装开机自启（任务计划程序，推荐） |
+| `UninstallTask` | 取消开机自启 |
+| `InstallStartup` | 旧版自启（注册表 + Startup 快捷方式，备用） |
+| `UninstallStartup` | 取消旧版自启 |
 | `FindPet` | 诊断宠物窗口识别（列出 Codex 进程、候选窗口、选中结果） |
 
 双击 `.bat` 或手动执行：
@@ -118,8 +120,9 @@ powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start -Usage
 
 ```text
 CodexPetUsageOverlay.ps1    主脚本（全部逻辑）
+Install.bat / Uninstall.bat
 Start.bat / Stop.bat / Status.bat
-InstallStartup.bat / UninstallStartup.bat
+InstallTask.bat / InstallStartup.bat / UninstallStartup.bat
 assets/                     预览图
 README.md / README.en.md    文档
 LICENSE
@@ -154,7 +157,7 @@ https://chatgpt.com/backend-api/wham/usage
 ## 🔧 故障排查
 
 - **没看到悬浮层**：确认 Codex Desktop 已打开 `/pet`，再把鼠标移到宠物身上。
-- **重启后没显示**：运行 `Status.bat`，确认 `StartupEnabled: True` 且 `Running: True`。
+- **重启后没显示**：运行 `Status.bat`，确认 `TaskInstalled: True` 且 `Running: True`。
 - **显示用量不可用**：运行 `Status.bat` 看最新日志；或直接看 `%LOCALAPPDATA%\CodexPetUsageOverlay\overlay.log`。多为接口临时故障，会自动降级。
 - **悬浮层不跟随宠物**：宠物显示在屏幕上时运行 `FindPet`，把输出贴出来排查窗口识别。
 
@@ -162,7 +165,7 @@ https://chatgpt.com/backend-api/wham/usage
 
 - `wham/usage` 不是公开稳定的 API，字段和可用性未来可能变化。
 - 本地日志兜底依赖 Codex 日志出现 `codex.rate_limits` 事件；没有事件时显示不可用。
-- 开机自启使用当前用户 `HKCU\...\Run` 并保留 Startup 快捷方式；如需延迟启动或管理员权限，请改用任务计划程序。
+- 开机自启默认用任务计划程序（登录时启动，无需管理员权限）；另有旧版注册表 + Startup 快捷方式可选用。
 - 宠物窗口识别是启发式的（尺寸 + 位置打分），极端情况下可能选错窗口；`FindPet` 可诊断。
 
 ## 📄 许可证

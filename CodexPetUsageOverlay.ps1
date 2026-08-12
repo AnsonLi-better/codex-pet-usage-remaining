@@ -1,5 +1,5 @@
 ﻿param(
-  [ValidateSet("Start", "Stop", "Status", "SelfTest", "InstallStartup", "UninstallStartup", "Run", "FindPet")]
+  [ValidateSet("Start", "Stop", "Status", "SelfTest", "InstallStartup", "UninstallStartup", "InstallTask", "UninstallTask", "Run", "FindPet")]
   [string]$Command = "Start",
   [int]$UsagePollSeconds = 60,
   [int]$PetPollMs = 80,
@@ -22,6 +22,7 @@ $HoverShowSeconds = 10
 $StartupShortcutName = "Codex pet usage overlay.lnk"
 $StartupRegistryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
 $StartupRegistryName = "CodexPetUsageOverlay"
+$TaskName = "Codex Pet Usage Overlay"
 $script:CodexStateCachePath = $null
 $script:CodexStateCacheWriteTime = [datetime]::MinValue
 $script:CodexStateCacheValue = $null
@@ -151,21 +152,36 @@ function Install-StartupShortcut {
   $arguments = Get-StartupArguments
   $shortcutPath = Get-StartupShortcutPath
 
-  New-Item -Path $StartupRegistryPath -Force | Out-Null
-  New-ItemProperty -Path $StartupRegistryPath -Name $StartupRegistryName -Value (Get-StartupCommandLine) -PropertyType String -Force | Out-Null
+  $registryInstalled = $false
+  $shortcutInstalled = $false
+  try {
+    New-Item -Path $StartupRegistryPath -Force -ErrorAction Stop | Out-Null
+    New-ItemProperty -Path $StartupRegistryPath -Name $StartupRegistryName -Value (Get-StartupCommandLine) -PropertyType String -Force -ErrorAction Stop | Out-Null
+    $registryInstalled = $true
+    Write-Output ("Installed startup registry value: {0}\{1}" -f $StartupRegistryPath, $StartupRegistryName)
+  } catch {
+    Write-Warning ("Could not install registry startup entry: {0}" -f $_.Exception.Message)
+  }
 
-  # Keep the shortcut as a fallback for machines where users inspect Startup manually.
-  $shell = New-Object -ComObject WScript.Shell
-  $shortcut = $shell.CreateShortcut($shortcutPath)
-  $shortcut.TargetPath = $powerShellPath
-  $shortcut.Arguments = $arguments
-  $shortcut.WorkingDirectory = $scriptDir
-  $shortcut.WindowStyle = 7
-  $shortcut.Description = "Start Codex pet usage overlay"
-  $shortcut.Save()
+  # Keep the shortcut as a fallback for machines where registry startup is restricted.
+  try {
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = $powerShellPath
+    $shortcut.Arguments = $arguments
+    $shortcut.WorkingDirectory = $scriptDir
+    $shortcut.WindowStyle = 7
+    $shortcut.Description = "Start Codex pet usage overlay"
+    $shortcut.Save()
+    $shortcutInstalled = $true
+    Write-Output ("Installed startup shortcut: {0}" -f $shortcutPath)
+  } catch {
+    Write-Warning ("Could not install Startup-folder shortcut: {0}" -f $_.Exception.Message)
+  }
 
-  Write-Output ("Installed startup registry value: {0}\{1}" -f $StartupRegistryPath, $StartupRegistryName)
-  Write-Output ("Installed startup shortcut: {0}" -f $shortcutPath)
+  if (-not ($registryInstalled -or $shortcutInstalled)) {
+    throw "Could not install either startup method. Run this script in a normal user PowerShell session."
+  }
 }
 
 function Uninstall-StartupShortcut {
@@ -180,6 +196,31 @@ function Uninstall-StartupShortcut {
     return
   }
   Write-Output ("Startup shortcut not found: {0}" -f $shortcutPath)
+}
+
+function Install-TaskScheduler {
+  $scriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
+  $powerShellPath = Get-StartupPowerShellPath
+  $taskAction = New-ScheduledTaskAction -Execute $powerShellPath -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -Command Start' -f $scriptPath)
+  $taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+  $taskPrincipal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+  $taskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+  try {
+    Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $taskTrigger -Principal $taskPrincipal -Settings $taskSettings -Force -ErrorAction Stop | Out-Null
+  } catch {
+    throw ("Task Scheduler installation failed: {0}" -f $_.Exception.Message)
+  }
+  Write-Output ("Installed Task Scheduler task: {0}" -f $TaskName)
+  Write-Output "The task starts the overlay when you sign in; it will follow the Codex pet when Codex is opened."
+}
+
+function Uninstall-TaskScheduler {
+  if ($null -eq (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) {
+    Write-Output ("Task Scheduler task not found: {0}" -f $TaskName)
+    return
+  }
+  Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Stop
+  Write-Output ("Removed Task Scheduler task: {0}" -f $TaskName)
 }
 
 function Start-Overlay {
@@ -846,15 +887,21 @@ function Show-Status {
   $state = Read-CodexState
   $startupPath = Get-StartupShortcutPath
   $startupRegistryValue = Get-StartupRegistryValue
+  $taskInstalled = $null -ne (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)
   $latestLog = ""
   if (Test-Path -LiteralPath $LogPath) {
-    $latestLog = Get-Content -LiteralPath $LogPath -Tail 1
+    try {
+      $latestLog = Get-Content -LiteralPath $LogPath -Tail 1 -ErrorAction Stop
+    } catch {
+      $latestLog = "(log unavailable: $($_.Exception.Message))"
+    }
   }
   [PSCustomObject]@{
     Running = $null -ne $running
     ProcessId = if ($running) { $running.ProcessId } else { $null }
     PidFile = $PidPath
     LogFile = $LogPath
+    TaskInstalled = $taskInstalled
     StartupEnabled = ($null -ne $startupRegistryValue) -or (Test-Path -LiteralPath $startupPath)
     StartupRegistry = $null -ne $startupRegistryValue
     StartupRegistryPath = "{0}\{1}" -f $StartupRegistryPath, $StartupRegistryName
@@ -1251,6 +1298,8 @@ switch ($Command) {
   "SelfTest" { Invoke-SelfTest }
   "InstallStartup" { Install-StartupShortcut }
   "UninstallStartup" { Uninstall-StartupShortcut }
+  "InstallTask" { Install-TaskScheduler }
+  "UninstallTask" { Uninstall-TaskScheduler }
   "Run" { Run-Overlay }
   "FindPet" { Invoke-FindPetDiagnostic }
 }

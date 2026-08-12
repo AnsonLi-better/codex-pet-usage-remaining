@@ -1,4 +1,4 @@
-# Codex /pet Usage Companion Overlay — Agent Setup Guide
+# Codex /pet Remaining Usage Companion Overlay — Agent Setup Guide
 
 > **For AI agents.** This document is a setup guide meant to be read and executed by an AI coding agent (Codex CLI, Claude Code, etc.) on the user's Windows machine. If you are such an agent, follow the steps below **in order**, run the commands, and keep the user informed of what you are doing at each step. If you are a human reading this, just hand the URL of this document to your agent.
 
@@ -36,7 +36,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 S
 
 **The output must be `SelfTest OK`.** If it is not, stop and report the error to the user (usually an outdated PowerShell or a broken download). Do **not** continue past this step.
 
-## Step 3 — Start the overlay
+## Step 3 — Install and start the overlay
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start
@@ -44,15 +44,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 S
 
 Tell the user: *"The usage overlay is now running in the background."*
 
-## Step 4 — Autostart at login (ask the user first)
+## Step 4 — Automatic startup at login (ask the user first)
 
 Ask the user: *"Want the overlay to start automatically when you log in?"* If yes:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 InstallStartup
+powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 InstallTask
 ```
 
-Then confirm with `Status` that `StartupEnabled` is `True`.
+Then confirm that the `Codex Pet Usage Overlay` task exists. For ordinary users, double-click `Install.bat`; it performs both Step 3 and Step 4.
 
 ## Step 5 — Guide the user through first use
 
@@ -69,8 +69,8 @@ Then confirm with `Status` that `StartupEnabled` is `True`.
 | `Stop` | Stop the overlay |
 | `Status` | Show running / autostart status and the latest log line |
 | `SelfTest` | Self-check |
-| `InstallStartup` | Install autostart for the current user |
-| `UninstallStartup` | Remove autostart |
+| `InstallTask` | Install automatic startup through Windows Task Scheduler |
+| `UninstallTask` | Remove automatic startup |
 | `FindPet` | Diagnose pet-window detection |
 
 Manual example: `powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Status`
