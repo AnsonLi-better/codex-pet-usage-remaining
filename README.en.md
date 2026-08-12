@@ -81,10 +81,8 @@ powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start
 | `Stop` | Stop the overlay |
 | `Status` | Show running / autostart status and the latest log line |
 | `SelfTest` | Self-check: script parsing, logic functions, Win32 C# class compilation |
-| `InstallTask` | Install automatic startup and task integration |
+| `InstallTask` | Install automatic startup (Task Scheduler) |
 | `UninstallTask` | Remove automatic startup |
-| `InstallStartup` | Legacy registry/startup-folder autostart |
-| `UninstallStartup` | Remove legacy autostart |
 | `FindPet` | Diagnose pet-window detection (lists Codex processes, candidates, picked window) |
 
 Double-click the `.bat` files or run manually:
@@ -122,7 +120,6 @@ powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start -Usage
 CodexPetUsageOverlay.ps1    main script (all logic)
 Install.bat / Uninstall.bat
 Start.bat / Stop.bat / Status.bat
-InstallStartup.bat / UninstallStartup.bat
 assets/                     preview images
 README.md / README.en.md    docs
 LICENSE
@@ -157,7 +154,7 @@ Runtime files (created automatically):
 ## 🔧 Troubleshooting
 
 - **No overlay**: make sure `/pet` is open in Codex Desktop, then hover the pet.
-- **Nothing after reboot**: run `Status.bat` and confirm `StartupEnabled: True` and `Running: True`.
+- **Nothing after reboot**: run `Status.bat` and confirm `TaskInstalled: True` and `Running: True`.
 - **Usage shows unavailable**: run `Status.bat` for the latest log, or read `%LOCALAPPDATA%\CodexPetUsageOverlay\overlay.log`. Usually a temporary API issue — it degrades gracefully.
 - **Overlay doesn't follow the pet**: with the pet on screen, run `FindPet` and share its output for diagnosis.
 
@@ -165,7 +162,7 @@ Runtime files (created automatically):
 
 - `wham/usage` is not a stable public API; fields and availability may change.
 - The local-log fallback depends on `codex.rate_limits` events appearing in Codex logs; without them it shows "unavailable".
-- Autostart uses the current user's `HKCU\...\Run` plus a Startup-folder shortcut; use Task Scheduler if you need delayed or elevated startup.
+- Autostart relies on Task Scheduler (runs at sign-in, no admin needed); it won't work if Task Scheduler is disabled by policy.
 - Pet-window detection is heuristic (size + position scoring) and could pick the wrong window in edge cases; `FindPet` can diagnose.
 
 ## 📄 License

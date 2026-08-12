@@ -81,10 +81,8 @@ powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start
 | `Stop` | 停止悬浮层 |
 | `Status` | 显示运行状态、开机自启状态、最新日志 |
 | `SelfTest` | 自检：脚本解析、逻辑函数、Win32 C# 类编译 |
-| `InstallTask` | 安装开机自启（任务计划程序，推荐） |
+| `InstallTask` | 安装开机自启（任务计划程序） |
 | `UninstallTask` | 取消开机自启 |
-| `InstallStartup` | 旧版自启（注册表 + Startup 快捷方式，备用） |
-| `UninstallStartup` | 取消旧版自启 |
 | `FindPet` | 诊断宠物窗口识别（列出 Codex 进程、候选窗口、选中结果） |
 
 双击 `.bat` 或手动执行：
@@ -122,7 +120,6 @@ powershell -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start -Usage
 CodexPetUsageOverlay.ps1    主脚本（全部逻辑）
 Install.bat / Uninstall.bat
 Start.bat / Stop.bat / Status.bat
-InstallStartup.bat / UninstallStartup.bat
 assets/                     预览图
 README.md / README.en.md    文档
 LICENSE
@@ -165,7 +162,7 @@ https://chatgpt.com/backend-api/wham/usage
 
 - `wham/usage` 不是公开稳定的 API，字段和可用性未来可能变化。
 - 本地日志兜底依赖 Codex 日志出现 `codex.rate_limits` 事件；没有事件时显示不可用。
-- 开机自启默认用任务计划程序（登录时启动，无需管理员权限）；另有旧版注册表 + Startup 快捷方式可选用。
+- 开机自启用任务计划程序（登录时启动，无需管理员权限）；若系统禁用了任务计划服务，则无法自启。
 - 宠物窗口识别是启发式的（尺寸 + 位置打分），极端情况下可能选错窗口；`FindPet` 可诊断。
 
 ## 📄 许可证

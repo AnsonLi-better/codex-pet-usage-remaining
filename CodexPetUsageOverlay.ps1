@@ -1,5 +1,5 @@
 ﻿param(
-  [ValidateSet("Start", "Stop", "Status", "SelfTest", "InstallStartup", "UninstallStartup", "InstallTask", "UninstallTask", "Run", "FindPet")]
+  [ValidateSet("Start", "Stop", "Status", "SelfTest", "InstallTask", "UninstallTask", "Run", "FindPet")]
   [string]$Command = "Start",
   [int]$UsagePollSeconds = 60,
   [int]$PetPollMs = 80,
@@ -19,9 +19,6 @@ $AppDir = Join-Path $env:LOCALAPPDATA $AppName
 $PidPath = Join-Path $AppDir "overlay.pid"
 $LogPath = Join-Path $AppDir "overlay.log"
 $HoverShowSeconds = 10
-$StartupShortcutName = "Codex pet usage overlay.lnk"
-$StartupRegistryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-$StartupRegistryName = "CodexPetUsageOverlay"
 $TaskName = "Codex Pet Usage Overlay"
 $script:CodexStateCachePath = $null
 $script:CodexStateCacheWriteTime = [datetime]::MinValue
@@ -114,88 +111,8 @@ function Get-RunningOverlayProcess {
   return @(Get-AllOverlayProcesses | Select-Object -First 1)[0]
 }
 
-function Get-StartupShortcutPath {
-  $startupDir = [Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)
-  return Join-Path $startupDir $StartupShortcutName
-}
-
 function Get-StartupPowerShellPath {
   return Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
-}
-
-function Get-StartupArguments {
-  $scriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
-  $quotedScript = '"' + ($scriptPath -replace '"', '\"') + '"'
-  $quotedCodexHome = '"' + ([System.IO.Path]::GetFullPath($CodexHome) -replace '"', '\"') + '"'
-  $langArg = if ($script:LanguageWasSet) { " -Language $Language" } else { "" }
-  return "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $quotedScript -Command Start -UsagePollSeconds $UsagePollSeconds -PetPollMs $PetPollMs -HoverPaddingPx $HoverPaddingPx$langArg -LanguageHotkey `"$LanguageHotkey`" -CodexHome $quotedCodexHome"
-}
-
-function Get-StartupCommandLine {
-  $powerShellPath = Get-StartupPowerShellPath
-  return ('"{0}" {1}' -f $powerShellPath, (Get-StartupArguments))
-}
-
-function Get-StartupRegistryValue {
-  try {
-    return (Get-ItemProperty -Path $StartupRegistryPath -Name $StartupRegistryName -ErrorAction Stop).$StartupRegistryName
-  } catch {
-    return $null
-  }
-}
-
-function Install-StartupShortcut {
-  # ponytail: HKCU Run is enough; use Task Scheduler only if delayed/elevated startup is needed.
-  $scriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
-  $scriptDir = Split-Path -Parent $scriptPath
-  $powerShellPath = Get-StartupPowerShellPath
-  $arguments = Get-StartupArguments
-  $shortcutPath = Get-StartupShortcutPath
-
-  $registryInstalled = $false
-  $shortcutInstalled = $false
-  try {
-    New-Item -Path $StartupRegistryPath -Force -ErrorAction Stop | Out-Null
-    New-ItemProperty -Path $StartupRegistryPath -Name $StartupRegistryName -Value (Get-StartupCommandLine) -PropertyType String -Force -ErrorAction Stop | Out-Null
-    $registryInstalled = $true
-    Write-Output ("Installed startup registry value: {0}\{1}" -f $StartupRegistryPath, $StartupRegistryName)
-  } catch {
-    Write-Warning ("Could not install registry startup entry: {0}" -f $_.Exception.Message)
-  }
-
-  # Keep the shortcut as a fallback for machines where registry startup is restricted.
-  try {
-    $shell = New-Object -ComObject WScript.Shell
-    $shortcut = $shell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $powerShellPath
-    $shortcut.Arguments = $arguments
-    $shortcut.WorkingDirectory = $scriptDir
-    $shortcut.WindowStyle = 7
-    $shortcut.Description = "Start Codex pet usage overlay"
-    $shortcut.Save()
-    $shortcutInstalled = $true
-    Write-Output ("Installed startup shortcut: {0}" -f $shortcutPath)
-  } catch {
-    Write-Warning ("Could not install Startup-folder shortcut: {0}" -f $_.Exception.Message)
-  }
-
-  if (-not ($registryInstalled -or $shortcutInstalled)) {
-    throw "Could not install either startup method. Run this script in a normal user PowerShell session."
-  }
-}
-
-function Uninstall-StartupShortcut {
-  $shortcutPath = Get-StartupShortcutPath
-  if ($null -ne (Get-StartupRegistryValue)) {
-    Remove-ItemProperty -Path $StartupRegistryPath -Name $StartupRegistryName -Force
-    Write-Output ("Removed startup registry value: {0}\{1}" -f $StartupRegistryPath, $StartupRegistryName)
-  }
-  if (Test-Path -LiteralPath $shortcutPath) {
-    Remove-Item -LiteralPath $shortcutPath -Force
-    Write-Output ("Removed startup shortcut: {0}" -f $shortcutPath)
-    return
-  }
-  Write-Output ("Startup shortcut not found: {0}" -f $shortcutPath)
 }
 
 function Install-TaskScheduler {
@@ -867,10 +784,6 @@ con.close()
   Assert-True ((Get-UsageColor 40.0) -eq "#F5B83D") "medium remaining should be amber"
   Assert-True ((Get-UsageColor 10.0) -eq "#F25C5C") "low remaining should be red"
   Assert-True ((Get-UsageColor $null) -eq "#43E6A8") "null remaining should default to green"
-  $startupPath = Get-StartupShortcutPath
-  Assert-True (([System.IO.Path]::GetExtension($startupPath)) -ieq ".lnk") "startup shortcut path should point to a lnk file"
-  $startupCommand = Get-StartupCommandLine
-  Assert-True ($startupCommand.IndexOf("-Command Start", [StringComparison]::OrdinalIgnoreCase) -ge 0) "startup command should call Start"
   Assert-True ((Format-Duration -ResetAt ([datetime]::Now.AddHours(26)) -Language "en") -eq "1d 2h") "en duration days should format as d/h"
   Assert-True ((Format-Duration -ResetAt ([datetime]::Now.AddMinutes(90)) -Language "en") -eq "1h 30m") "en duration hours should format as h/m"
   Assert-True ((Format-Duration -ResetAt ([datetime]::Now.AddSeconds(45)) -Language "en") -eq "45s") "en duration seconds should format as s"
@@ -885,8 +798,6 @@ con.close()
 function Show-Status {
   $running = Get-RunningOverlayProcess
   $state = Read-CodexState
-  $startupPath = Get-StartupShortcutPath
-  $startupRegistryValue = Get-StartupRegistryValue
   $taskInstalled = $null -ne (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)
   $latestLog = ""
   if (Test-Path -LiteralPath $LogPath) {
@@ -902,11 +813,6 @@ function Show-Status {
     PidFile = $PidPath
     LogFile = $LogPath
     TaskInstalled = $taskInstalled
-    StartupEnabled = ($null -ne $startupRegistryValue) -or (Test-Path -LiteralPath $startupPath)
-    StartupRegistry = $null -ne $startupRegistryValue
-    StartupRegistryPath = "{0}\{1}" -f $StartupRegistryPath, $StartupRegistryName
-    StartupShortcut = Test-Path -LiteralPath $startupPath
-    StartupShortcutPath = $startupPath
     CodexHome = [System.IO.Path]::GetFullPath($CodexHome)
     CodexStateFile = Test-Path -LiteralPath (Join-Path $CodexHome ".codex-global-state.json")
     PetOverlayOpen = if ($state) { [bool]$state.'electron-avatar-overlay-open' } else { $false }
@@ -1296,8 +1202,6 @@ switch ($Command) {
   "Stop" { Stop-Overlay }
   "Status" { Show-Status }
   "SelfTest" { Invoke-SelfTest }
-  "InstallStartup" { Install-StartupShortcut }
-  "UninstallStartup" { Uninstall-StartupShortcut }
   "InstallTask" { Install-TaskScheduler }
   "UninstallTask" { Uninstall-TaskScheduler }
   "Run" { Run-Overlay }
