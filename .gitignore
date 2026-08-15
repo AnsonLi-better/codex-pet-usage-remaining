@@ -23,3 +23,9 @@ _apply_*.ps1
 
 # Installer build output
 dist/
+
+# Internal / design-only files kept out of the public repo
+DEVELOPMENT_HANDOFF*
+design/
+assets/*-source.png
+assets/app-icon-terminal*
