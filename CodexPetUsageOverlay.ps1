@@ -19,7 +19,9 @@ $AppDir = Join-Path $env:LOCALAPPDATA $AppName
 $PidPath = Join-Path $AppDir "overlay.pid"
 $LogPath = Join-Path $AppDir "overlay.log"
 $HoverShowSeconds = 10
-$TaskName = "Codex Pet Usage Overlay"
+$DisplayName = "Codex Usage Remaining"
+$TaskName = $DisplayName
+$LegacyTaskName = "Codex Pet Usage Overlay"
 $script:CodexStateCachePath = $null
 $script:CodexStateCacheWriteTime = [datetime]::MinValue
 $script:CodexStateCacheValue = $null
@@ -115,8 +117,38 @@ function Get-StartupPowerShellPath {
   return Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 }
 
+function Get-AutostartShortcutPath {
+  $startupDir = [Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)
+  return Join-Path $startupDir "$DisplayName.lnk"
+}
+
+function Test-AutostartEnabled {
+  $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+  $legacyTask = Get-ScheduledTask -TaskName $LegacyTaskName -ErrorAction SilentlyContinue
+  return ($null -ne $task -or $null -ne $legacyTask -or (Test-Path -LiteralPath (Get-AutostartShortcutPath)))
+}
+
+function Install-AutostartShortcut {
+  $shortcutPath = Get-AutostartShortcutPath
+  $shell = New-Object -ComObject WScript.Shell
+  $shortcut = $shell.CreateShortcut($shortcutPath)
+  $shortcut.TargetPath = Get-StartupPowerShellPath
+  $shortcut.Arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -Command Start' -f ([System.IO.Path]::GetFullPath($PSCommandPath))
+  $shortcut.WorkingDirectory = Split-Path -Parent ([System.IO.Path]::GetFullPath($PSCommandPath))
+  $shortcut.WindowStyle = 7
+  $shortcut.Description = "Start $DisplayName"
+  $shortcut.Save()
+  Write-Output ("Installed Startup-folder shortcut: {0}" -f $shortcutPath)
+}
+
 function Install-TaskScheduler {
+  if ($null -ne (Get-ScheduledTask -TaskName $LegacyTaskName -ErrorAction SilentlyContinue)) {
+    Unregister-ScheduledTask -TaskName $LegacyTaskName -Confirm:$false -ErrorAction SilentlyContinue
+  }
+  $legacyShortcut = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)) "Codex Pet Usage Overlay.lnk"
+  if (Test-Path -LiteralPath $legacyShortcut) { Remove-Item -LiteralPath $legacyShortcut -Force -ErrorAction SilentlyContinue }
   $scriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
+  $scriptDir = Split-Path -Parent $scriptPath
   $powerShellPath = Get-StartupPowerShellPath
   $taskAction = New-ScheduledTaskAction -Execute $powerShellPath -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -Command Start' -f $scriptPath)
   $taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
@@ -125,19 +157,30 @@ function Install-TaskScheduler {
   try {
     Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $taskTrigger -Principal $taskPrincipal -Settings $taskSettings -Force -ErrorAction Stop | Out-Null
   } catch {
-    throw ("Task Scheduler installation failed: {0}" -f $_.Exception.Message)
+    Write-Warning ("Task Scheduler was unavailable; using the Startup folder instead: {0}" -f $_.Exception.Message)
+    Install-AutostartShortcut
+    return
   }
   Write-Output ("Installed Task Scheduler task: {0}" -f $TaskName)
   Write-Output "The task starts the overlay when you sign in; it will follow the Codex pet when Codex is opened."
 }
 
 function Uninstall-TaskScheduler {
-  if ($null -eq (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) {
-    Write-Output ("Task Scheduler task not found: {0}" -f $TaskName)
-    return
+  $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+  if ($null -ne $task) {
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Stop
+    Write-Output ("Removed Task Scheduler task: {0}" -f $TaskName)
   }
-  Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Stop
-  Write-Output ("Removed Task Scheduler task: {0}" -f $TaskName)
+  $shortcutPath = Get-AutostartShortcutPath
+  if (Test-Path -LiteralPath $shortcutPath) {
+    Remove-Item -LiteralPath $shortcutPath -Force
+    Write-Output ("Removed Startup-folder shortcut: {0}" -f $shortcutPath)
+  }
+  if ($null -ne (Get-ScheduledTask -TaskName $LegacyTaskName -ErrorAction SilentlyContinue)) {
+    Unregister-ScheduledTask -TaskName $LegacyTaskName -Confirm:$false -ErrorAction SilentlyContinue
+  }
+  $legacyShortcut = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)) "Codex Pet Usage Overlay.lnk"
+  if (Test-Path -LiteralPath $legacyShortcut) { Remove-Item -LiteralPath $legacyShortcut -Force -ErrorAction SilentlyContinue }
 }
 
 function Start-Overlay {
@@ -149,11 +192,12 @@ function Start-Overlay {
   }
 
   $scriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
+  $scriptDir = Split-Path -Parent $scriptPath
   $quotedScript = '"' + ($scriptPath -replace '"', '\"') + '"'
   $quotedCodexHome = '"' + ([System.IO.Path]::GetFullPath($CodexHome) -replace '"', '\"') + '"'
   $langArg = if ($script:LanguageWasSet) { " -Language $Language" } else { "" }
   $args = "-NoProfile -ExecutionPolicy Bypass -File $quotedScript -Command Run -UsagePollSeconds $UsagePollSeconds -PetPollMs $PetPollMs -HoverPaddingPx $HoverPaddingPx$langArg -LanguageHotkey `"$LanguageHotkey`" -CodexHome $quotedCodexHome"
-  $process = Start-Process -FilePath "powershell.exe" -ArgumentList ("-STA " + $args) -WindowStyle Hidden -PassThru
+  $process = Start-Process -FilePath (Get-StartupPowerShellPath) -ArgumentList ("-STA " + $args) -WorkingDirectory $scriptDir -WindowStyle Hidden -PassThru
   Set-Content -LiteralPath $PidPath -Value $process.Id -Encoding ASCII
   Write-Output ("Started Codex pet usage overlay. PID: {0}" -f $process.Id)
 }
@@ -354,15 +398,29 @@ function Build-PetRectFromHwnd {
 }
 
 function Get-LivePetRect {
+  $codexPids = @(Get-CodexProcessIds)
+  if ($codexPids.Count -eq 0) {
+    $script:TrackedPetHwnd = [IntPtr]::Zero
+    return $null
+  }
   if ($script:TrackedPetHwnd -ne [IntPtr]::Zero) {
-    $rect = Build-PetRectFromHwnd -Hwnd $script:TrackedPetHwnd
-    if ($null -ne $rect) { return $rect }
+    $trackedPid = 0
+    [void][CodexPetUsageOverlayNative]::GetWindowThreadProcessId($script:TrackedPetHwnd, [ref]$trackedPid)
+    if ($codexPids -contains [int]$trackedPid) {
+      $rect = Build-PetRectFromHwnd -Hwnd $script:TrackedPetHwnd
+      if ($null -ne $rect) { return $rect }
+    }
     $script:TrackedPetHwnd = [IntPtr]::Zero
   }
   $window = Find-PetWindow
   if ($null -eq $window) { return $null }
   $script:TrackedPetHwnd = $window.HWND
   return Build-PetRectFromHwnd -Hwnd $window.HWND
+}
+
+function Test-CanUsePersistedPetRect {
+  param([bool]$CodexRunning, $PersistedPetRect)
+  return ($CodexRunning -and $null -ne $PersistedPetRect)
 }
 
 function Invoke-FindPetDiagnostic {
@@ -768,6 +826,8 @@ con.close()
   Assert-True (Test-PointInRect -Point ([PSCustomObject]@{ X = 15; Y = 25 }) -Rect $rect) "cursor inside pet rect should show"
   Assert-True (-not (Test-PointInRect -Point ([PSCustomObject]@{ X = 50; Y = 25 }) -Rect $rect)) "cursor outside pet rect should not show"
   Assert-True (Test-PointInRect -Point ([PSCustomObject]@{ X = 50; Y = 25 }) -Rect $rect -Padding 10) "padding should catch near-pet cursor"
+  Assert-True (-not (Test-CanUsePersistedPetRect -CodexRunning $false -PersistedPetRect $rect)) "persisted pet position must not show while Codex is closed"
+  Assert-True (Test-CanUsePersistedPetRect -CodexRunning $true -PersistedPetRect $rect) "persisted pet position may be used while Codex is running"
   $now = Get-Date
   $firstUntil = Get-OverlayShowUntil -CursorInPet $true -CursorWasInPet $false -CurrentShowUntil ([datetime]::MinValue) -Now $now -Seconds 10
   Assert-True (Test-ShouldShowOverlay -ShowUntilAt $firstUntil -Now $now.AddSeconds(9)) "entering pet should show for 10 seconds"
@@ -798,7 +858,7 @@ con.close()
 function Show-Status {
   $running = Get-RunningOverlayProcess
   $state = Read-CodexState
-  $taskInstalled = $null -ne (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)
+  $taskInstalled = Test-AutostartEnabled
   $latestLog = ""
   if (Test-Path -LiteralPath $LogPath) {
     try {
@@ -870,6 +930,10 @@ function Run-Overlay {
   Rotate-AppLog
   Set-Content -LiteralPath $PidPath -Value $PID -Encoding ASCII
 
+  # WPF's font cache constructs file URIs from windir. Some launchers omit this
+  # otherwise standard variable even though SystemRoot is present.
+  if ([string]::IsNullOrWhiteSpace($env:windir)) { $env:windir = $env:SystemRoot }
+
   Add-Type -AssemblyName PresentationFramework
   Add-Type -AssemblyName PresentationCore
   Add-Type -AssemblyName WindowsBase
@@ -878,6 +942,8 @@ function Run-Overlay {
   $script:ShowOverlayUntil = [datetime]::MinValue
   $script:CursorWasInPet = $false
   $script:OverlayWasVisible = $false
+  $script:OverlayPaused = $false
+  $script:AutostartEnabled = Test-AutostartEnabled
   $script:LastTextUpdateAt = [datetime]::MinValue
   if ($script:LanguageWasSet) {
     $script:Language = $Language
@@ -890,7 +956,18 @@ function Run-Overlay {
   $script:HotkeyMods = $resolvedHotkey.Mods
   Write-AppLog ("Overlay run started. Language: {0}, LanguageHotkey: {1}" -f $script:Language, $LanguageHotkey)
 
-  $window = New-Object System.Windows.Window
+  try {
+    $window = New-Object System.Windows.Window
+  } catch {
+    $detail = $_.Exception
+    $messages = New-Object System.Collections.Generic.List[string]
+    while ($null -ne $detail) {
+      $messages.Add(("{0}: {1}" -f $detail.GetType().FullName, $detail.Message))
+      $detail = $detail.InnerException
+    }
+    Write-AppLog ("WPF window initialization failed: {0}" -f ($messages -join " | "))
+    throw
+  }
   $window.WindowStyle = [System.Windows.WindowStyle]::None
   $window.ResizeMode = [System.Windows.ResizeMode]::NoResize
   $window.AllowsTransparency = $true
@@ -985,8 +1062,20 @@ function Run-Overlay {
   }
 
   function Update-Overlay {
+    if ($script:OverlayPaused) {
+      $script:ShowOverlayUntil = [datetime]::MinValue
+      $script:CursorWasInPet = $false
+      $window.Hide()
+      return
+    }
     $pet = Get-LivePetRect
-    if ($null -eq $pet) { $pet = Get-PetRect }
+    if ($null -eq $pet) {
+      $persistedPet = Get-PetRect
+      $codexRunning = @(Get-CodexProcessIds).Count -gt 0
+      if (Test-CanUsePersistedPetRect -CodexRunning $codexRunning -PersistedPetRect $persistedPet) {
+        $pet = $persistedPet
+      }
+    }
     if ($null -eq $pet) {
       $script:ShowOverlayUntil = [datetime]::MinValue
       $script:CursorWasInPet = $false
@@ -1080,6 +1169,393 @@ function Run-Overlay {
   $window.Show()
   $window.Hide()
 
+  # System tray management keeps everyday controls out of the project folder.
+  $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
+  $trayStatus = New-Object System.Windows.Forms.ToolStripMenuItem
+  $trayStatus.Text = $DisplayName
+  $trayStatus.Enabled = $false
+  [void]$trayMenu.Items.Add($trayStatus)
+  [void]$trayMenu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+
+  $pauseItem = New-Object System.Windows.Forms.ToolStripMenuItem
+  $pauseItem.Text = if ($script:Language -eq "en") { "Pause overlay" } else { U "\u6682\u505c\u60ac\u6d6e\u7a97" }
+  $pauseItem.CheckOnClick = $true
+  $pauseItem.Add_Click({
+    $script:OverlayPaused = $pauseItem.Checked
+    if ($script:OverlayPaused) {
+      $window.Hide()
+      $script:ShowOverlayUntil = [datetime]::MinValue
+      $pauseItem.Text = if ($script:Language -eq "en") { "Resume overlay" } else { U "\u6062\u590d\u60ac\u6d6e\u7a97" }
+      Write-AppLog "Overlay paused from tray."
+    } else {
+      $pauseItem.Text = if ($script:Language -eq "en") { "Pause overlay" } else { U "\u6682\u505c\u60ac\u6d6e\u7a97" }
+      Write-AppLog "Overlay resumed from tray."
+      Update-Overlay
+    }
+  })
+  [void]$trayMenu.Items.Add($pauseItem)
+
+  $startupItem = New-Object System.Windows.Forms.ToolStripMenuItem
+  $startupItem.Text = if ($script:Language -eq "en") { "Start with Windows" } else { U "\u5f00\u673a\u81ea\u52a8\u542f\u52a8" }
+  $startupItem.Checked = Test-AutostartEnabled
+  $startupItem.Add_Click({
+    try {
+      if ($startupItem.Checked) {
+        Uninstall-TaskScheduler
+        $startupItem.Checked = $false
+      } else {
+        Install-TaskScheduler
+        $startupItem.Checked = $true
+      }
+    } catch {
+      [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, $AppName, [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
+    }
+  })
+  [void]$trayMenu.Items.Add($startupItem)
+
+  $logItem = New-Object System.Windows.Forms.ToolStripMenuItem
+  $logItem.Text = if ($script:Language -eq "en") { "View log" } else { U "\u67e5\u770b\u65e5\u5fd7" }
+  $logItem.Add_Click({
+    try { Start-Process -FilePath "notepad.exe" -ArgumentList ('"{0}"' -f $LogPath) } catch {
+      [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, $AppName) | Out-Null
+    }
+  })
+  [void]$trayMenu.Items.Add($logItem)
+  [void]$trayMenu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+
+  $exitItem = New-Object System.Windows.Forms.ToolStripMenuItem
+  $exitItem.Text = if ($script:Language -eq "en") { "Exit" } else { U "\u9000\u51fa" }
+  [void]$trayMenu.Items.Add($exitItem)
+
+  $trayIcon = New-Object System.Windows.Forms.NotifyIcon
+  $trayIcon.Text = $DisplayName
+  $iconPath = Join-Path (Split-Path -Parent ([System.IO.Path]::GetFullPath($PSCommandPath))) "assets\app-icon.ico"
+  if (Test-Path -LiteralPath $iconPath) {
+    $trayIcon.Icon = New-Object System.Drawing.Icon $iconPath
+  } else {
+    $trayIcon.Icon = [System.Drawing.SystemIcons]::Information
+  }
+  $trayIcon.ContextMenuStrip = $trayMenu
+  $trayIcon.Visible = $true
+
+  # Compact WPF control panel opened from the tray icon. If a host-specific WPF
+  # incompatibility occurs, keep the tray app alive with the classic menu.
+  try {
+  Write-AppLog "Control panel initialization started."
+  $controlWindow = New-Object System.Windows.Window
+  $controlWindow.Width = 280
+  $controlWindow.Height = 330
+  $controlWindow.WindowStyle = [System.Windows.WindowStyle]::None
+  $controlWindow.ResizeMode = [System.Windows.ResizeMode]::NoResize
+  $controlWindow.AllowsTransparency = $true
+  $controlWindow.Background = [System.Windows.Media.Brushes]::Transparent
+  $controlWindow.ShowInTaskbar = $false
+  $controlWindow.Topmost = $true
+  $controlWindow.ShowActivated = $true
+
+  $controlRoot = New-Object System.Windows.Controls.Border
+  $controlRoot.CornerRadius = New-Object System.Windows.CornerRadius 16
+  $controlRoot.Background = New-Brush "#080A0C" 252
+  $controlRoot.BorderBrush = New-Brush "#FFFFFF" 38
+  $controlRoot.BorderThickness = New-Object System.Windows.Thickness 1
+  $controlRoot.Padding = New-Object System.Windows.Thickness 16
+  $controlWindow.Content = $controlRoot
+
+  $controlGrid = New-Object System.Windows.Controls.Grid
+  $controlRoot.Child = $controlGrid
+  foreach ($height in @(42, 76, 32, 32, 32, 1, 32, 32, 19)) {
+    $row = New-Object System.Windows.Controls.RowDefinition
+    $row.Height = New-Object System.Windows.GridLength $height
+    $controlGrid.RowDefinitions.Add($row)
+  }
+
+  $header = New-Object System.Windows.Controls.Grid
+  $header.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+  $header.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+  $header.ColumnDefinitions[0].Width = New-Object System.Windows.GridLength -ArgumentList 1,([System.Windows.GridUnitType]::Star)
+  $header.ColumnDefinitions[1].Width = New-Object System.Windows.GridLength 72
+  [System.Windows.Controls.Grid]::SetRow($header, 0)
+  [void]$controlGrid.Children.Add($header)
+  $headerText = New-Object System.Windows.Controls.StackPanel
+  $title = New-Object System.Windows.Controls.TextBlock
+  $title.Text = $DisplayName
+  $title.Foreground = New-Brush "#F5F2E8"
+  $title.FontSize = 16
+  $title.FontWeight = [System.Windows.FontWeights]::SemiBold
+  $status = New-Object System.Windows.Controls.TextBlock
+  $status.Text = if ($script:Language -eq "en") { "● Running" } else { U "\u25cf \u8fd0\u884c\u4e2d" }
+  $status.Foreground = New-Brush "#43E6A8"
+  $status.FontSize = 11
+  $status.Margin = New-Object System.Windows.Thickness 0,4,0,0
+  [void]$headerText.Children.Add($title); [void]$headerText.Children.Add($status)
+  [void]$header.Children.Add($headerText)
+  $glyph = New-Object System.Windows.Controls.TextBlock
+  $glyph.Text = ">_<"
+  $glyph.Foreground = New-Brush "#F5F2E8"
+  $glyph.FontFamily = New-Object System.Windows.Media.FontFamily "Consolas"
+  $glyph.FontSize = 16
+  $glyph.FontWeight = [System.Windows.FontWeights]::Bold
+  $glyph.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+  $glyph.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+  [System.Windows.Controls.Grid]::SetColumn($glyph, 1)
+  [void]$header.Children.Add($glyph)
+
+  $usageCard = New-Object System.Windows.Controls.Border
+  $usageCard.Background = New-Brush "#11161B" 255
+  $usageCard.CornerRadius = New-Object System.Windows.CornerRadius 12
+  $usageCard.Margin = New-Object System.Windows.Thickness 0,5,0,8
+  [System.Windows.Controls.Grid]::SetRow($usageCard, 1)
+  [void]$controlGrid.Children.Add($usageCard)
+  $usageCanvas = New-Object System.Windows.Controls.Canvas
+  $usageCard.Child = $usageCanvas
+  $controlLabel = New-Object System.Windows.Controls.TextBlock
+  $controlLabel.Text = if ($script:Language -eq "en") { "7-day remaining" } else { U "7 \u5929\u5269\u4f59" }
+  $controlLabel.Foreground = New-Brush "#98A4AC"
+  $controlLabel.FontSize = 11
+  [System.Windows.Controls.Canvas]::SetLeft($controlLabel, 14); [System.Windows.Controls.Canvas]::SetTop($controlLabel, 10)
+  [void]$usageCanvas.Children.Add($controlLabel)
+  $controlPercent = New-Object System.Windows.Controls.TextBlock
+  $controlPercent.Text = "--%"
+  $controlPercent.Foreground = New-Brush "#F5F2E8"
+  $controlPercent.FontSize = 28
+  $controlPercent.FontWeight = [System.Windows.FontWeights]::SemiBold
+  [System.Windows.Controls.Canvas]::SetLeft($controlPercent, 14); [System.Windows.Controls.Canvas]::SetTop($controlPercent, 28)
+  [void]$usageCanvas.Children.Add($controlPercent)
+  $controlTrack = New-Object System.Windows.Shapes.Ellipse
+  $controlTrack.Stroke = New-Brush "#FFFFFF" 28
+  $controlTrack.StrokeThickness = 6
+  $controlArc = New-Object System.Windows.Shapes.Path
+  $controlArc.Stroke = New-Brush "#43E6A8"
+  $controlArc.StrokeThickness = 6
+  $controlArc.StrokeStartLineCap = [System.Windows.Media.PenLineCap]::Round
+  $controlArc.StrokeEndLineCap = [System.Windows.Media.PenLineCap]::Round
+  foreach ($shape in @($controlTrack, $controlArc)) { [void]$usageCanvas.Children.Add($shape) }
+  Set-EllipseBounds -Ellipse $controlTrack -CenterX 210 -CenterY 34 -Radius 24
+
+  $controlButtonTemplate = [System.Windows.Markup.XamlReader]::Parse(@'
+<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 TargetType="{x:Type Button}"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Border x:Name="RowBackground"
+          Background="{TemplateBinding Background}"
+          CornerRadius="6"
+          Padding="{TemplateBinding Padding}"
+          SnapsToDevicePixels="True">
+    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                      SnapsToDevicePixels="True" />
+  </Border>
+  <ControlTemplate.Triggers>
+    <Trigger Property="IsMouseOver" Value="True">
+      <Setter TargetName="RowBackground" Property="Background" Value="#171C20" />
+    </Trigger>
+    <Trigger Property="IsPressed" Value="True">
+      <Setter TargetName="RowBackground" Property="Background" Value="#20272C" />
+    </Trigger>
+  </ControlTemplate.Triggers>
+</ControlTemplate>
+'@)
+
+  function New-ControlRow {
+    param([int]$Row, [string]$Label, [string]$Value, [string]$Accent = "#F5F2E8")
+    $button = New-Object System.Windows.Controls.Button
+    $button.Background = [System.Windows.Media.Brushes]::Transparent
+    $button.BorderThickness = New-Object System.Windows.Thickness 0
+    $button.Template = $controlButtonTemplate
+    $button.HorizontalContentAlignment = [System.Windows.HorizontalAlignment]::Stretch
+    $button.Padding = New-Object System.Windows.Thickness 4,0,4,0
+    $content = New-Object System.Windows.Controls.Grid
+    $content.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+    $content.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
+    $content.ColumnDefinitions[0].Width = New-Object System.Windows.GridLength -ArgumentList 1,([System.Windows.GridUnitType]::Star)
+    $content.ColumnDefinitions[1].Width = New-Object System.Windows.GridLength 92
+    $left = New-Object System.Windows.Controls.TextBlock
+    $left.Text = $Label; $left.Foreground = New-Brush $Accent; $left.FontSize = 12
+    $left.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+    $right = New-Object System.Windows.Controls.TextBlock
+    $right.Text = $Value; $right.Foreground = New-Brush "#98A4AC"; $right.FontSize = 12
+    $right.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+    $right.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+    [System.Windows.Controls.Grid]::SetColumn($right, 1)
+    [void]$content.Children.Add($left); [void]$content.Children.Add($right)
+    $button.Content = $content
+    [System.Windows.Controls.Grid]::SetRow($button, $Row)
+    [void]$controlGrid.Children.Add($button)
+    return [PSCustomObject]@{ Button = $button; Label = $left; Value = $right }
+  }
+
+  function New-ToggleVisual {
+    $track = New-Object System.Windows.Controls.Border
+    $track.Width = 36; $track.Height = 20
+    $track.CornerRadius = New-Object System.Windows.CornerRadius 10
+    $track.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+    $track.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+    $dot = New-Object System.Windows.Shapes.Ellipse
+    $dot.Width = 14; $dot.Height = 14
+    $dot.Fill = New-Brush "#F5F2E8"
+    $dot.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Left
+    $dot.Margin = New-Object System.Windows.Thickness 3,0,0,0
+    $track.Child = $dot
+    return [PSCustomObject]@{ Track = $track; Dot = $dot }
+  }
+
+  function Set-ToggleVisual {
+    param($Toggle, [bool]$Enabled)
+    if ($Enabled) {
+      $trackColor = "#43E6A8"
+      $dotAlignment = [System.Windows.HorizontalAlignment]::Right
+      $dotMargin = New-Object System.Windows.Thickness 0,0,3,0
+    } else {
+      $trackColor = "#30383E"
+      $dotAlignment = [System.Windows.HorizontalAlignment]::Left
+      $dotMargin = New-Object System.Windows.Thickness 3,0,0,0
+    }
+    $Toggle.Track.Background = New-Brush $trackColor
+    $Toggle.Dot.HorizontalAlignment = $dotAlignment
+    $Toggle.Dot.Margin = $dotMargin
+  }
+
+  $overlayLabel = if ($script:Language -eq "en") { "Overlay" } else { U "\u60ac\u6d6e\u7a97" }
+  $startupLabel = if ($script:Language -eq "en") { "Start with Windows" } else { U "\u5f00\u673a\u81ea\u52a8\u542f\u52a8" }
+  $startupValue = if ($script:AutostartEnabled) { "ON" } else { "OFF" }
+  $languageLabel = if ($script:Language -eq "en") { "Language" } else { U "\u754c\u9762\u8bed\u8a00" }
+  $languageValue = if ($script:Language -eq "en") { "English  ›" } else { U "\u4e2d\u6587  \u203a" }
+  $overlayRow = New-ControlRow 2 $overlayLabel "ON"
+  $startupRow = New-ControlRow 3 $startupLabel $startupValue
+  $languageRow = New-ControlRow 4 $languageLabel $languageValue
+  $overlayToggle = New-ToggleVisual
+  $startupToggle = New-ToggleVisual
+  $overlayRow.Value.Visibility = [System.Windows.Visibility]::Collapsed
+  $startupRow.Value.Visibility = [System.Windows.Visibility]::Collapsed
+  [System.Windows.Controls.Grid]::SetColumn($overlayToggle.Track, 1)
+  [System.Windows.Controls.Grid]::SetColumn($startupToggle.Track, 1)
+  [void]$overlayRow.Button.Content.Children.Add($overlayToggle.Track)
+  [void]$startupRow.Button.Content.Children.Add($startupToggle.Track)
+
+  $languageChoices = New-Object System.Windows.Controls.StackPanel
+  $languageChoices.Orientation = [System.Windows.Controls.Orientation]::Horizontal
+  $languageChoices.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+  $languageChoices.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+  $languageChoices.Visibility = [System.Windows.Visibility]::Collapsed
+  $zhChoice = New-Object System.Windows.Controls.TextBlock
+  $zhChoice.Text = U "\u4e2d\u6587"; $zhChoice.FontSize = 11; $zhChoice.Margin = New-Object System.Windows.Thickness 0,0,10,0
+  $enChoice = New-Object System.Windows.Controls.TextBlock
+  $enChoice.Text = "EN"; $enChoice.FontSize = 11
+  [void]$languageChoices.Children.Add($zhChoice); [void]$languageChoices.Children.Add($enChoice)
+  [System.Windows.Controls.Grid]::SetColumn($languageChoices, 1)
+  [void]$languageRow.Button.Content.Children.Add($languageChoices)
+  $separator = New-Object System.Windows.Controls.Border
+  $separator.Background = New-Brush "#FFFFFF" 24
+  $separator.Height = 1
+  [System.Windows.Controls.Grid]::SetRow($separator, 5); [void]$controlGrid.Children.Add($separator)
+  $logLabel = if ($script:Language -eq "en") { "View log" } else { U "\u67e5\u770b\u65e5\u5fd7" }
+  $exitLabel = if ($script:Language -eq "en") { "Exit" } else { U "\u9000\u51fa\u7a0b\u5e8f" }
+  $controlLogRow = New-ControlRow 6 $logLabel "›"
+  $controlExitRow = New-ControlRow 7 $exitLabel "" "#FF6B62"
+  $versionText = New-Object System.Windows.Controls.TextBlock
+  $versionText.Text = "v1.1.0"; $versionText.Foreground = New-Brush "#65717A"; $versionText.FontSize = 9
+  $versionText.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+  $versionText.VerticalAlignment = [System.Windows.VerticalAlignment]::Bottom
+  [System.Windows.Controls.Grid]::SetRow($versionText, 8); [void]$controlGrid.Children.Add($versionText)
+
+  function Update-ControlPanel {
+    $remaining = if ($script:UsageState.Available -and $null -ne $script:UsageState.SecondaryRemaining) { [double]$script:UsageState.SecondaryRemaining } elseif ($script:UsageState.Available -and $null -ne $script:UsageState.PrimaryRemaining) { [double]$script:UsageState.PrimaryRemaining } else { $null }
+    $status.Text = if ($script:Language -eq "en") { "● Running" } else { U "\u25cf \u8fd0\u884c\u4e2d" }
+    $controlLabel.Text = if ($script:Language -eq "en") { "7-day remaining" } else { U "7 \u5929\u5269\u4f59" }
+    $overlayRow.Label.Text = if ($script:Language -eq "en") { "Overlay" } else { U "\u60ac\u6d6e\u7a97" }
+    $startupRow.Label.Text = if ($script:Language -eq "en") { "Start with Windows" } else { U "\u5f00\u673a\u81ea\u52a8\u542f\u52a8" }
+    $languageRow.Label.Text = if ($script:Language -eq "en") { "Language" } else { U "\u754c\u9762\u8bed\u8a00" }
+    $languageRow.Value.Text = if ($script:Language -eq "en") { "English  ›" } else { U "\u4e2d\u6587  \u203a" }
+    $controlLogRow.Label.Text = if ($script:Language -eq "en") { "View log" } else { U "\u67e5\u770b\u65e5\u5fd7" }
+    $controlExitRow.Label.Text = if ($script:Language -eq "en") { "Exit" } else { U "\u9000\u51fa\u7a0b\u5e8f" }
+    $pauseItem.Text = if ($script:OverlayPaused) {
+      if ($script:Language -eq "en") { "Resume overlay" } else { U "\u6062\u590d\u60ac\u6d6e\u7a97" }
+    } else {
+      if ($script:Language -eq "en") { "Pause overlay" } else { U "\u6682\u505c\u60ac\u6d6e\u7a97" }
+    }
+    $startupItem.Text = if ($script:Language -eq "en") { "Start with Windows" } else { U "\u5f00\u673a\u81ea\u52a8\u542f\u52a8" }
+    $logItem.Text = if ($script:Language -eq "en") { "View log" } else { U "\u67e5\u770b\u65e5\u5fd7" }
+    $exitItem.Text = if ($script:Language -eq "en") { "Exit" } else { U "\u9000\u51fa" }
+    $controlPercent.Text = if ($null -ne $remaining) { "{0:N0}%" -f $remaining } else { "--%" }
+    $controlArc.Stroke = New-Brush (Get-UsageColor $remaining)
+    Set-ArcPath -Path $controlArc -CenterX 210 -CenterY 34 -Radius 24 -Percent $remaining
+    Set-ToggleVisual -Toggle $overlayToggle -Enabled (-not $script:OverlayPaused)
+    Set-ToggleVisual -Toggle $startupToggle -Enabled $script:AutostartEnabled
+    if ($script:Language -eq "zh") { $zhColor = "#43E6A8"; $enColor = "#98A4AC" }
+    else { $zhColor = "#98A4AC"; $enColor = "#43E6A8" }
+    $zhChoice.Foreground = New-Brush $zhColor
+    $enChoice.Foreground = New-Brush $enColor
+  }
+
+  function Show-ControlPanel {
+    Update-ControlPanel
+    $cursorPos = [System.Windows.Forms.Cursor]::Position
+    $screen = [System.Windows.Forms.Screen]::FromPoint($cursorPos)
+    $controlWindow.Show()
+    $source = [System.Windows.PresentationSource]::FromVisual($controlWindow)
+    if ($null -ne $source -and $null -ne $source.CompositionTarget) {
+      $fromDevice = $source.CompositionTarget.TransformFromDevice
+      $cursorDevicePoint = New-Object System.Windows.Point -ArgumentList ([double]$cursorPos.X),([double]$cursorPos.Y)
+      $workTopLeftDevice = New-Object System.Windows.Point -ArgumentList ([double]$screen.WorkingArea.Left),([double]$screen.WorkingArea.Top)
+      $workBottomRightDevice = New-Object System.Windows.Point -ArgumentList ([double]$screen.WorkingArea.Right),([double]$screen.WorkingArea.Bottom)
+      $cursorDip = $fromDevice.Transform($cursorDevicePoint)
+      $workTopLeft = $fromDevice.Transform($workTopLeftDevice)
+      $workBottomRight = $fromDevice.Transform($workBottomRightDevice)
+      $controlWindow.Left = [Math]::Min([Math]::Max($workTopLeft.X, $cursorDip.X - $controlWindow.Width + 18), $workBottomRight.X - $controlWindow.Width)
+      $controlWindow.Top = [Math]::Min([Math]::Max($workTopLeft.Y, $cursorDip.Y - $controlWindow.Height - 10), $workBottomRight.Y - $controlWindow.Height)
+    }
+    $controlWindow.Activate() | Out-Null
+  }
+
+  $overlayRow.Button.Add_Click({
+    $script:OverlayPaused = -not $script:OverlayPaused
+    $pauseItem.Checked = $script:OverlayPaused
+    if ($script:OverlayPaused) { $window.Hide(); $script:ShowOverlayUntil = [datetime]::MinValue }
+    Update-ControlPanel
+  })
+  $startupRow.Button.Add_Click({
+    try {
+      if ($script:AutostartEnabled) { Uninstall-TaskScheduler } else { Install-TaskScheduler }
+      $script:AutostartEnabled = -not $script:AutostartEnabled
+      Update-ControlPanel
+    } catch { [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, $AppName) | Out-Null }
+  })
+  $languageRow.Button.Add_MouseEnter({
+    $languageRow.Value.Visibility = [System.Windows.Visibility]::Collapsed
+    $languageChoices.Visibility = [System.Windows.Visibility]::Visible
+  })
+  $languageRow.Button.Add_MouseLeave({
+    $languageChoices.Visibility = [System.Windows.Visibility]::Collapsed
+    $languageRow.Value.Text = if ($script:Language -eq "en") { "English  ›" } else { U "\u4e2d\u6587  \u203a" }
+    $languageRow.Value.Visibility = [System.Windows.Visibility]::Visible
+  })
+  $languageRow.Button.Add_PreviewMouseLeftButtonDown({
+    param($sender, $eventArgs)
+    if ($languageChoices.Visibility -ne [System.Windows.Visibility]::Visible) { return }
+    if ($eventArgs.OriginalSource -eq $zhChoice -and $script:Language -ne "zh") {
+      Toggle-Language
+      Update-ControlPanel
+      $eventArgs.Handled = $true
+    } elseif ($eventArgs.OriginalSource -eq $enChoice -and $script:Language -ne "en") {
+      Toggle-Language
+      Update-ControlPanel
+      $eventArgs.Handled = $true
+    }
+  })
+  $controlLogRow.Button.Add_Click({ try { Start-Process notepad.exe ('"{0}"' -f $LogPath) } catch {} })
+  $controlExitRow.Button.Add_Click({ $exitItem.PerformClick() })
+  $controlWindow.Add_Deactivated({ $controlWindow.Hide() })
+  $trayIcon.ContextMenuStrip = $null
+  $trayIcon.Add_MouseClick({
+    param($sender, $eventArgs)
+    $window.Dispatcher.BeginInvoke([Action]{ Show-ControlPanel }) | Out-Null
+  })
+  Write-AppLog "Control panel initialization completed."
+  } catch {
+    Write-AppLog ("Control panel initialization failed; classic tray menu retained: {0}" -f $_.Exception.Message)
+    $trayIcon.ContextMenuStrip = $trayMenu
+  }
+
   $usageTimer = New-Object System.Windows.Threading.DispatcherTimer
   $usageTimer.Interval = [TimeSpan]::FromSeconds($UsagePollSeconds)
   $usageTimer.Add_Tick({
@@ -1099,6 +1575,19 @@ function Run-Overlay {
 
   $app = New-Object System.Windows.Application
   $app.ShutdownMode = [System.Windows.ShutdownMode]::OnExplicitShutdown
+  $exitItem.Add_Click({
+    Write-AppLog "Exit requested from tray."
+    $trayIcon.Visible = $false
+    $trayIcon.Dispose()
+    if (Test-Path -LiteralPath $PidPath) { Remove-Item -LiteralPath $PidPath -Force -ErrorAction SilentlyContinue }
+    $app.Shutdown()
+  })
+  $app.Add_Exit({
+    if ($null -ne $trayIcon) {
+      $trayIcon.Visible = $false
+      $trayIcon.Dispose()
+    }
+  })
   $usageTimer.Start()
   $petTimer.Start()
   Refresh-Usage

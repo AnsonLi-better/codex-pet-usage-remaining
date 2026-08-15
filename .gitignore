@@ -20,3 +20,6 @@ mode.txt
 _gen_*.ps1
 _render_*.ps1
 _apply_*.ps1
+
+# Installer build output
+dist/

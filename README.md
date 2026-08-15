@@ -23,6 +23,7 @@
 - **中英切换**：`Ctrl+Alt+Shift+L` 一键切换中文 / English（`7天窗口` ⇄ `Weekly`），选择会记住。
 - **多级兜底**：live 接口 → 本地日志 → 显示不可用，接口抖动不影响使用。
 - **开机自启**（可选）：双击 `Install.bat` 装好任务计划程序，登录时自动启动。
+- **托盘控制**：右键通知区图标可暂停/恢复悬浮窗、开关开机自启、查看日志、退出。
 
 ## 📦 前置条件
 
@@ -60,10 +61,11 @@ https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/
 3. **看到卡片 = 成功** 🎉 拖动宠物，卡片会跟着移动
 4. 想用英文界面？按 `Ctrl+Alt+Shift+L` 一键切换中 / 英文（`7天窗口` ⇄ `Weekly`），选择会自动记住
 
-> 想停掉：双击 `Stop.bat`。想取消开机自启：双击 `Uninstall.bat`。
+> 想暂停/恢复、看日志、退出？右键通知区的 **Codex Usage Remaining** 图标（可能在 `^` 折叠区）。想停掉：双击 `Stop.bat`。取消开机自启：双击 `Uninstall.bat`。
 >
 > 💡 **文件夹放哪里都行**（桌面、下载、D 盘随意）：脚本按自己所在位置运行，运行时文件写在 `%LOCALAPPDATA%\CodexPetUsageOverlay`，不会在你的文件夹里留东西。
 > ⚠️ **唯一注意**：装好开机自启后就别再移动文件夹，否则自启会失效；移动后重新双击 `Install.bat` 即可。
+> 📁 **保持整个文件夹完整**（尤其 `assets\`）：托盘图标来自 `assets\app-icon.ico`，删了会退回系统默认图标。
 
 ### 方式三：用命令行（熟手）
 

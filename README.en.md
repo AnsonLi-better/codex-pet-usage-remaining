@@ -23,6 +23,7 @@ Written from scratch, **does not modify Codex**. It only reads Codex's local sta
 - **Bilingual UI**: press `Ctrl+Alt+Shift+L` to switch between Chinese and English (`7天窗口` ⇄ `Weekly`); your choice is remembered.
 - **Resilient data sources**: live API → local logs → "unavailable". Temporary API issues never break the overlay.
 - **Optional autostart** at login (current user).
+- **System tray controls**: right-click the notification-area icon to pause/resume, toggle automatic startup, view the log, or exit.
 
 ## 📦 Prerequisites
 
@@ -60,10 +61,11 @@ https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/
 3. **Card visible = success** 🎉 Drag the pet and the card follows it.
 4. Want the UI in the other language? Press `Ctrl+Alt+Shift+L` to toggle Chinese ⇄ English (`7天窗口` ⇄ `Weekly`) — your choice is remembered.
 
-> Want to stop it? Double-click `Stop.bat`. To remove automatic startup, double-click `Uninstall.bat`.
+> To pause, resume, view logs, or exit, right-click the **Codex Usage Remaining** icon in the Windows notification area (it may be under `^`). You can also double-click `Stop.bat`. To remove automatic startup, double-click `Uninstall.bat`.
 >
 > 💡 **You can put the folder anywhere** (Desktop, Downloads, D:\...): the script locates itself by its own path, and runtime files live in `%LOCALAPPDATA%\CodexPetUsageOverlay` — nothing is written to your folder.
 > ⚠️ **One caveat**: once you install autostart, don't move the folder afterwards, or autostart will break; just double-click `Install.bat` again after moving.
+> 📁 **Keep the whole folder intact** (especially `assets\`): the tray icon comes from `assets\app-icon.ico`; deleting it falls back to the system icon.
 
 ### Option 3: Command line (for the experienced)
 
