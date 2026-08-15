@@ -5,6 +5,8 @@
 
 一个**从零编写、不修改 Codex** 的伴随工具。它只读本机的 Codex 状态文件来定位宠物、用你本机的 Codex 登录态查询用量，不发任何数据到第三方。
 
+> ⬇️ **一键安装（免配置）**：[下载安装包](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest) — 双击即装即用，最简单的方式。
+
 <p align="center">
   <img src="assets/preview-green.png" width="122" alt="高用量（绿色）" title="≥60% 绿"/>
   <img src="assets/preview-amber.png" width="122" alt="中用量（琥珀色）" title="30–59% 琥珀"/>
@@ -33,9 +35,17 @@
 
 ## 🚀 快速开始（新手也能 3 分钟搞定）
 
-> **一句话版**：把下面 `AGENT_SETUP.md` 的链接丢给你的 Agent 即可自动装好；想自己动手就：下载 ZIP → 解压 → 双击 `Install.bat`（装自启并立即启动）→ 悬停宠物。
+> **一句话版**：下载安装包双击即可（最简单）；想折腾就：ZIP 解压 → 双击 `Install.bat` → 悬停宠物。
 
-### 方式一：让 Agent 帮你装（推荐）
+### 方式一：下载安装包（最简单，推荐）
+
+1. 打开 [Releases 页面](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest)，下载 `CodexUsageRemaining-Setup-*.exe`
+2. 双击运行，按提示点"下一步"即可 —— 会自动装好开机自启并立即启动悬浮层
+3. 打开 Codex Desktop 输入 `/pet`，鼠标移到宠物身上 → 看到卡片 = 成功 🎉
+
+> 免管理员、装在当前用户目录；想卸载在开始菜单里找 "Uninstall Codex Usage Remaining"。
+
+### 方式二：让 Agent 帮你装
 
 已经有能操作电脑的 Agent（Codex / Claude）？把下面这个**链接**发给它，它会自己下载、自检、启动，并问你需不需要开机自启：
 
@@ -43,7 +53,7 @@
 https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
 ```
 
-### 方式二：手动安装
+### 方式三：手动安装（ZIP）
 
 **第 1 步 · 下载**
 1. 打开本仓库页面，点右上角绿色的 `Code` 按钮
@@ -67,7 +77,7 @@ https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/
 > ⚠️ **唯一注意**：装好开机自启后就别再移动文件夹，否则自启会失效；移动后重新双击 `Install.bat` 即可。
 > 📁 **保持整个文件夹完整**（尤其 `assets\`）：托盘图标来自 `assets\app-icon.ico`，删了会退回系统默认图标。
 
-### 方式三：用命令行（熟手）
+### 方式四：用命令行（熟手）
 
 会打开 PowerShell 的，直接运行下面的命令即可；完整命令见下文"命令"一节。
 

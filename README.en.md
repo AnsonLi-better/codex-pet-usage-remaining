@@ -5,6 +5,8 @@
 
 Written from scratch, **does not modify Codex**. It only reads Codex's local state file to locate the pet and uses your local Codex login to query usage. No data is sent to any third party.
 
+> ⬇️ **One-click install (no setup)**: [download the installer](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest) — run it and you're done.
+
 <p align="center">
   <img src="assets/preview-green.png" width="122" alt="High usage (green)" title=">=60% green"/>
   <img src="assets/preview-amber.png" width="122" alt="Medium usage (amber)" title="30-59% amber"/>
@@ -33,9 +35,17 @@ Written from scratch, **does not modify Codex**. It only reads Codex's local sta
 
 ## 🚀 Quick start (works for absolute beginners)
 
-> **In one line**: download the ZIP → extract → double-click `Install.bat` → open Codex and hover the pet. The installer starts the overlay immediately and enables automatic startup at Windows sign-in.
+> **In one line**: download the installer and double-click it (easiest). Want to DIY? Download the ZIP → extract → double-click `Install.bat` → hover the pet.
 
-### Option 1: Let an Agent do it (recommended)
+### Option 1: Download the installer (easiest, recommended)
+
+1. Open the [Releases page](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest) and download `CodexUsageRemaining-Setup-*.exe`.
+2. Run it and click through — it installs autostart and starts the overlay immediately.
+3. Open Codex Desktop, type `/pet`, hover the pet — **card visible = success** 🎉
+
+> Per-user install, no admin needed; uninstall via "Uninstall Codex Usage Remaining" in the Start menu.
+
+### Option 2: Let an Agent do it
 
 Already using an Agent that can run commands on your PC (Codex / Claude)? Hand it the **link** below — it will download, verify, launch, and ask whether you want autostart:
 
@@ -43,7 +53,7 @@ Already using an Agent that can run commands on your PC (Codex / Claude)? Hand i
 https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/AGENT_SETUP.md
 ```
 
-### Option 2: Manual install
+### Option 3: Manual install (ZIP)
 
 **Step 1 · Download**
 1. Open this repository's page and click the green `Code` button (top right).
@@ -67,7 +77,7 @@ https://raw.githubusercontent.com/AnsonLi-better/codex-pet-usage-remaining/main/
 > ⚠️ **One caveat**: once you install autostart, don't move the folder afterwards, or autostart will break; just double-click `Install.bat` again after moving.
 > 📁 **Keep the whole folder intact** (especially `assets\`): the tray icon comes from `assets\app-icon.ico`; deleting it falls back to the system icon.
 
-### Option 3: Command line (for the experienced)
+### Option 4: Command line (for the experienced)
 
 If you're comfortable with PowerShell, just run the command below; see the "Commands" section for the full list.
 
