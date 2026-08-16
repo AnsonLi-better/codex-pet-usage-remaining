@@ -31,7 +31,9 @@
 <p align="center"><sub>点击通知区域的图标即可打开；支持中文和 English。</sub></p>
 
 <p align="center">
-  <img src="assets/tray-token-tooltip-en.png" width="280" alt="鼠标悬停柱状图时显示日期、Token 数值和数据来源"/>
+  <img src="assets/tray-token-tooltip-zh.png" width="280" alt="中文：鼠标悬停柱状图显示 UTC 日期、Token 数值和数据来源"/>
+  &nbsp;&nbsp;
+  <img src="assets/tray-token-tooltip-en.png" width="280" alt="English: hovering a daily bar shows its UTC date, token count, and data source"/>
 </p>
 
 <p align="center"><sub>鼠标移到每日柱状图上，可查看 UTC 日期、完整 Token 数值和数据来源。</sub></p>

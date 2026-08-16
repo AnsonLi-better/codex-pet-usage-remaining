@@ -32,6 +32,8 @@ An open-source Windows companion app: hover the Codex pet to see a real-time rem
 
 <p align="center">
   <img src="assets/tray-token-tooltip-en.png" width="280" alt="A daily bar tooltip showing the UTC date, full token count, and data source"/>
+  &nbsp;&nbsp;
+  <img src="assets/tray-token-tooltip-zh.png" width="280" alt="中文：鼠标悬停柱状图显示 UTC 日期、Token 数值和数据来源"/>
 </p>
 
 <p align="center"><sub>Hover a daily bar to see its UTC date, full token count, and data source.</sub></p>
