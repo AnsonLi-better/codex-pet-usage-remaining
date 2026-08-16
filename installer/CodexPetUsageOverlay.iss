@@ -1,5 +1,5 @@
 #define MyAppName "Codex Usage Remaining"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "AnsonLi-better"
 #define MyAppURL "https://github.com/AnsonLi-better/codex-pet-usage-remaining"
 #define MyAppScript "CodexPetUsageOverlay.ps1"
@@ -22,7 +22,7 @@ OutputBaseFilename=CodexUsageRemaining-Setup-{#MyAppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=..\assets\app-icon.ico
+SetupIconFile=..\assets\app-icon-terminal-black.ico
 UninstallDisplayName={#MyAppName}
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -40,15 +40,15 @@ Source: "..\Status.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\README.en.md"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\assets\app-icon.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
-Source: "..\assets\app-icon.png"; DestDir: "{app}\assets"; Flags: ignoreversion
+Source: "..\assets\app-icon-terminal-black.ico"; DestDir: "{app}\assets"; Flags: ignoreversion
+Source: "..\assets\app-icon-terminal-black.png"; DestDir: "{app}\assets"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\{#MyAppScript}"" -Command Start"; WorkingDir: "{app}"; IconFilename: "{app}\assets\app-icon.ico"; Comment: "Start {#MyAppName}"
+Name: "{group}\{#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\{#MyAppScript}"" -Command Start"; WorkingDir: "{app}"; IconFilename: "{app}\assets\app-icon-terminal-black.ico"; Comment: "Start {#MyAppName}"
 Name: "{group}\Stop {#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\{#MyAppScript}"" -Command Stop"; WorkingDir: "{app}"
 Name: "{group}\View log"; Filename: "notepad.exe"; Parameters: """{localappdata}\CodexPetUsageOverlay\overlay.log"""
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{userstartup}\{#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\{#MyAppScript}"" -Command Start"; WorkingDir: "{app}"; IconFilename: "{app}\assets\app-icon.ico"; Comment: "Start {#MyAppName}"
+Name: "{userstartup}\{#MyAppName}"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\{#MyAppScript}"" -Command Start"; WorkingDir: "{app}"; IconFilename: "{app}\assets\app-icon-terminal-black.ico"; Comment: "Start {#MyAppName}"
 
 [Run]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""{app}\{#MyAppScript}"" -Command Start"; Flags: runhidden nowait postinstall skipifsilent; Description: "Start {#MyAppName}"

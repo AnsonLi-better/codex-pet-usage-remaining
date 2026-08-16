@@ -18,6 +18,7 @@ $AppName = "CodexPetUsageOverlay"
 $AppDir = Join-Path $env:LOCALAPPDATA $AppName
 $PidPath = Join-Path $AppDir "overlay.pid"
 $LogPath = Join-Path $AppDir "overlay.log"
+$TokenUsageStatePath = Join-Path $AppDir "token-usage-state.json"
 $HoverShowSeconds = 10
 $DisplayName = "Codex Usage Remaining"
 $TaskName = $DisplayName
@@ -30,6 +31,9 @@ $script:Language = "zh"
 $script:LanguageWasSet = $PSBoundParameters.ContainsKey("Language")
 $script:HotkeyVk = [uint32]0
 $script:HotkeyMods = [uint32]0
+$script:UsageAppServerProcess = $null
+$script:UsageAppServerRequestId = 0
+$script:TokenUsageState = [PSCustomObject]@{ Available = $false; TodayTokens = 0L; TodayEstimated = $true; Last7Tokens = 0L; DailyBuckets = @{}; Source = "none" }
 
 function U {
   param([string]$Text)
@@ -71,10 +75,9 @@ function Get-OverlayProcessFromPid {
   try {
     $process = Get-CimInstance Win32_Process -Filter "ProcessId=$ProcessId"
     if ($null -eq $process) { return $null }
-    $scriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
     $commandLine = [string]$process.CommandLine
     if (
-      $commandLine.IndexOf($scriptPath, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+      $commandLine.IndexOf("CodexPetUsageOverlay.ps1", [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
       $commandLine.IndexOf("-File", [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
       $commandLine.IndexOf("-Command Run", [StringComparison]::OrdinalIgnoreCase) -ge 0
     ) {
@@ -87,10 +90,9 @@ function Get-OverlayProcessFromPid {
 
 function Get-AllOverlayProcesses {
   try {
-    $scriptPath = [System.IO.Path]::GetFullPath($PSCommandPath)
     return @(Get-CimInstance Win32_Process | Where-Object {
       $commandLine = [string]$_.CommandLine
-      $commandLine.IndexOf($scriptPath, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+      $commandLine.IndexOf("CodexPetUsageOverlay.ps1", [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
       $commandLine.IndexOf("-File", [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
       $commandLine.IndexOf("-Command Run", [StringComparison]::OrdinalIgnoreCase) -ge 0
     })
@@ -321,24 +323,27 @@ function Get-CodexProcessIds {
   return @($result)
 }
 
-function Find-PetWindow {
-  $pids = Get-CodexProcessIds
-  if ($pids.Count -eq 0) { return $null }
-  $anchor = Get-PetRect
+function Select-PetWindowCandidate {
+  param($Windows, $Anchor)
   $anchorCx = $null
   $anchorCy = $null
-  if ($null -ne $anchor) {
-    $anchorCx = $anchor.Left + $anchor.Width / 2.0
-    $anchorCy = $anchor.Top + $anchor.Height / 2.0
+  if ($null -ne $Anchor) {
+    $anchorCx = $Anchor.Left + $Anchor.Width / 2.0
+    $anchorCy = $Anchor.Top + $Anchor.Height / 2.0
   }
   $best = $null
   $bestScore = [double]::MaxValue
-  foreach ($window in (Get-NativeWindowList -ProcessIds $pids)) {
-    if ($window.Width -lt 40 -or $window.Width -gt 220 -or $window.Height -lt 40 -or $window.Height -gt 220) { continue }
+  foreach ($window in @($Windows)) {
+    if ($window.Width -lt 60 -or $window.Width -gt 180 -or $window.Height -lt 60 -or $window.Height -gt 180) { continue }
     if ($window.X -lt -1000 -or $window.Y -lt -1000) { continue }
+    $aspect = [double]$window.Width / [double]$window.Height
+    if ($aspect -lt 0.65 -or $aspect -gt 1.55) { continue }
     $score = [Math]::Abs($window.Width - 118.0) + [Math]::Abs($window.Height - 118.0)
     if ($null -ne $anchorCx) {
-      $score += [Math]::Abs(($window.X + $window.Width / 2.0) - $anchorCx) + [Math]::Abs(($window.Y + $window.Height / 2.0) - $anchorCy)
+      $distanceX = [Math]::Abs(($window.X + $window.Width / 2.0) - $anchorCx)
+      $distanceY = [Math]::Abs(($window.Y + $window.Height / 2.0) - $anchorCy)
+      if ($distanceX -gt 260 -or $distanceY -gt 260) { continue }
+      $score += $distanceX + $distanceY
     }
     if ($score -lt $bestScore) {
       $bestScore = $score
@@ -346,6 +351,12 @@ function Find-PetWindow {
     }
   }
   return $best
+}
+
+function Find-PetWindow {
+  $pids = Get-CodexProcessIds
+  if ($pids.Count -eq 0) { return $null }
+  return Select-PetWindowCandidate -Windows (Get-NativeWindowList -ProcessIds $pids) -Anchor (Get-PetRect)
 }
 
 function Get-WindowMonitorRect {
@@ -698,6 +709,262 @@ function Get-Usage {
   }
 }
 
+function Find-StandaloneCodexBinary {
+  $command = Get-Command codex.exe -ErrorAction SilentlyContinue
+  if ($null -ne $command) {
+    try {
+      $item = Get-Item -LiteralPath $command.Source -ErrorAction Stop
+      if (-not ($item.Attributes -band [System.IO.FileAttributes]::Encrypted)) { return $item.FullName }
+    } catch {
+    }
+  }
+  $npxRoot = Join-Path $env:LOCALAPPDATA "npm-cache\_npx"
+  if (Test-Path -LiteralPath $npxRoot) {
+    $binary = Get-ChildItem -LiteralPath $npxRoot -Recurse -Filter "codex.exe" -File -ErrorAction SilentlyContinue |
+      Where-Object { $_.FullName -like "*@openai*codex-win32-x64*" -and -not ($_.Attributes -band [System.IO.FileAttributes]::Encrypted) } |
+      Sort-Object LastWriteTime -Descending |
+      Select-Object -First 1
+    if ($null -ne $binary) { return $binary.FullName }
+  }
+  return $null
+}
+
+function Stop-UsageAppServer {
+  $process = $script:UsageAppServerProcess
+  $script:UsageAppServerProcess = $null
+  if ($null -eq $process) { return }
+  try { $process.StandardInput.Close() } catch {}
+  try {
+    if (-not $process.HasExited) {
+      $process.Kill()
+      $null = $process.WaitForExit(2000)
+    }
+  } catch {}
+  try { $process.Dispose() } catch {}
+}
+
+function Send-UsageAppServerMessage {
+  param([hashtable]$Message)
+  $process = $script:UsageAppServerProcess
+  if ($null -eq $process -or $process.HasExited) { throw "Codex app-server is not running." }
+  $json = $Message | ConvertTo-Json -Depth 12 -Compress
+  $process.StandardInput.WriteLine($json)
+  $process.StandardInput.Flush()
+}
+
+function Receive-UsageAppServerResponse {
+  param([int]$RequestId, [int]$TimeoutMs = 20000)
+  $process = $script:UsageAppServerProcess
+  $deadline = [datetime]::UtcNow.AddMilliseconds($TimeoutMs)
+  while ([datetime]::UtcNow -lt $deadline) {
+    if ($null -eq $process -or $process.HasExited) { throw "Codex app-server exited before responding." }
+    $remaining = [Math]::Max(1, [int]($deadline - [datetime]::UtcNow).TotalMilliseconds)
+    $readTask = $process.StandardOutput.ReadLineAsync()
+    if (-not $readTask.Wait($remaining)) { throw "Timed out waiting for Codex app-server." }
+    $line = $readTask.Result
+    if ($null -eq $line) { throw "Codex app-server closed its output." }
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+    try { $message = $line | ConvertFrom-Json -ErrorAction Stop } catch { continue }
+    if ($null -ne $message.id -and [int]$message.id -eq $RequestId) {
+      if ($null -ne $message.error) { throw "Codex app-server error: $($message.error.message)" }
+      return $message.result
+    }
+  }
+  throw "Timed out waiting for Codex app-server response."
+}
+
+function Invoke-UsageAppServerRequest {
+  param([string]$Method, $Params = $null)
+  $script:UsageAppServerRequestId++
+  $message = @{ method = $Method; id = $script:UsageAppServerRequestId }
+  if ($null -ne $Params) { $message.params = $Params }
+  Send-UsageAppServerMessage -Message $message
+  return Receive-UsageAppServerResponse -RequestId $script:UsageAppServerRequestId
+}
+
+function Start-UsageAppServer {
+  if ($null -ne $script:UsageAppServerProcess) {
+    try { if (-not $script:UsageAppServerProcess.HasExited) { return $true } } catch {}
+    Stop-UsageAppServer
+  }
+  $binary = Find-StandaloneCodexBinary
+  if ([string]::IsNullOrWhiteSpace($binary)) { return $false }
+  $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+  $startInfo.FileName = $binary
+  $startInfo.Arguments = "app-server"
+  $startInfo.UseShellExecute = $false
+  $startInfo.CreateNoWindow = $true
+  $startInfo.RedirectStandardInput = $true
+  $startInfo.RedirectStandardOutput = $true
+  $process = New-Object System.Diagnostics.Process
+  $process.StartInfo = $startInfo
+  try {
+    if (-not $process.Start()) { throw "Failed to start Codex app-server." }
+    $script:UsageAppServerProcess = $process
+    $script:UsageAppServerRequestId = 0
+    $null = Invoke-UsageAppServerRequest -Method "initialize" -Params @{
+      clientInfo = @{ name = "codex_usage_remaining"; title = $DisplayName; version = "1.2.0" }
+      capabilities = @{ experimentalApi = $true }
+    }
+    Send-UsageAppServerMessage -Message @{ method = "initialized"; params = @{} }
+    Write-AppLog ("Private Codex app-server started. PID: {0}" -f $process.Id)
+    return $true
+  } catch {
+    Write-AppLog "Private Codex app-server unavailable: $($_.Exception.Message)"
+    Stop-UsageAppServer
+    return $false
+  }
+}
+
+function Get-OfficialTokenUsage {
+  try {
+    if (-not (Start-UsageAppServer)) { return $null }
+    return Invoke-UsageAppServerRequest -Method "account/usage/read"
+  } catch {
+    Write-AppLog "Official token usage lookup failed: $($_.Exception.Message)"
+    Stop-UsageAppServer
+    return $null
+  }
+}
+
+function ConvertTo-OffsetMap {
+  param($Value)
+  $map = @{}
+  if ($null -eq $Value) { return $map }
+  foreach ($property in $Value.PSObject.Properties) {
+    try { $map[[string]$property.Name] = [long]$property.Value } catch {}
+  }
+  return $map
+}
+
+function Read-LocalTokenState {
+  $today = [datetime]::UtcNow.ToString("yyyy-MM-dd")
+  if (-not (Test-Path -LiteralPath $TokenUsageStatePath)) {
+    return [PSCustomObject]@{ UtcDate = $today; Tokens = 0L; Offsets = @{} }
+  }
+  try {
+    $saved = Get-Content -LiteralPath $TokenUsageStatePath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ([string]$saved.utcDate -ne $today) {
+      return [PSCustomObject]@{ UtcDate = $today; Tokens = 0L; Offsets = @{} }
+    }
+    return [PSCustomObject]@{ UtcDate = $today; Tokens = [Math]::Max(0L, [long]$saved.tokens); Offsets = ConvertTo-OffsetMap $saved.offsets }
+  } catch {
+    return [PSCustomObject]@{ UtcDate = $today; Tokens = 0L; Offsets = @{} }
+  }
+}
+
+function Save-LocalTokenState {
+  param($State)
+  Ensure-AppDir
+  $tempPath = "$TokenUsageStatePath.tmp"
+  @{ utcDate = $State.UtcDate; tokens = [long]$State.Tokens; offsets = $State.Offsets } |
+    ConvertTo-Json -Depth 5 -Compress | Set-Content -LiteralPath $tempPath -Encoding UTF8
+  Move-Item -LiteralPath $tempPath -Destination $TokenUsageStatePath -Force
+}
+
+function Read-NewTokenCountEvents {
+  param([string]$Path, [long]$Offset, [string]$UtcDate)
+  try {
+    $stream = New-Object System.IO.FileStream -ArgumentList @($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+    try {
+      if ($Offset -lt 0 -or $Offset -gt $stream.Length) { $Offset = 0 }
+      $stream.Position = $Offset
+      $length = [int]($stream.Length - $Offset)
+      if ($length -le 0) { return [PSCustomObject]@{ Tokens = 0L; Offset = $Offset } }
+      $buffer = New-Object byte[] $length
+      $read = $stream.Read($buffer, 0, $length)
+    } finally {
+      $stream.Dispose()
+    }
+    $lastNewline = -1
+    for ($i = $read - 1; $i -ge 0; $i--) { if ($buffer[$i] -eq 10) { $lastNewline = $i; break } }
+    if ($lastNewline -lt 0) { return [PSCustomObject]@{ Tokens = 0L; Offset = $Offset } }
+    $text = [System.Text.Encoding]::UTF8.GetString($buffer, 0, $lastNewline + 1)
+    $tokens = 0L
+    foreach ($line in ($text -split "`n")) {
+      if ([string]::IsNullOrWhiteSpace($line)) { continue }
+      try {
+        $cleanLine = $line.TrimEnd("`r").TrimStart([char]0xFEFF)
+        $record = $cleanLine | ConvertFrom-Json -ErrorAction Stop
+        if ($record.type -ne "event_msg" -or $record.payload.type -ne "token_count") { continue }
+        if (-not ([string]$record.timestamp).StartsWith($UtcDate, [StringComparison]::Ordinal)) { continue }
+        $value = $record.payload.info.last_token_usage.total_tokens
+        if ($null -ne $value) { $tokens += [Math]::Max(0L, [long]$value) }
+      } catch {}
+    }
+    return [PSCustomObject]@{ Tokens = $tokens; Offset = $Offset + $lastNewline + 1 }
+  } catch {
+    return [PSCustomObject]@{ Tokens = 0L; Offset = $Offset }
+  }
+}
+
+function Get-LocalTodayTokens {
+  $state = Read-LocalTokenState
+  $sessionsPath = Join-Path $CodexHome "sessions"
+  if (-not (Test-Path -LiteralPath $sessionsPath)) { return [long]$state.Tokens }
+  $midnightUtc = [datetime]::UtcNow.Date
+  $files = Get-ChildItem -LiteralPath $sessionsPath -Recurse -Filter "rollout-*.jsonl" -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTimeUtc -ge $midnightUtc }
+  foreach ($file in $files) {
+    $path = $file.FullName
+    $offset = if ($state.Offsets.ContainsKey($path)) { [long]$state.Offsets[$path] } else { 0L }
+    $delta = Read-NewTokenCountEvents -Path $path -Offset $offset -UtcDate $state.UtcDate
+    $state.Tokens = [long]$state.Tokens + [long]$delta.Tokens
+    $state.Offsets[$path] = [long]$delta.Offset
+  }
+  try { Save-LocalTokenState -State $state } catch { Write-AppLog "Local token state save failed: $($_.Exception.Message)" }
+  return [long]$state.Tokens
+}
+
+function Get-TokenUsage {
+  $localToday = Get-LocalTodayTokens
+  $official = Get-OfficialTokenUsage
+  $buckets = @{}
+  if ($null -ne $official) {
+    foreach ($bucket in @($official.dailyUsageBuckets)) {
+      if ($null -ne $bucket.startDate) { $buckets[[string]$bucket.startDate] = [Math]::Max(0L, [long]$bucket.tokens) }
+    }
+  }
+  $todayKey = [datetime]::UtcNow.ToString("yyyy-MM-dd")
+  $hasOfficialToday = $buckets.ContainsKey($todayKey)
+  $todayTokens = if ($hasOfficialToday) { [long]$buckets[$todayKey] } else { [long]$localToday }
+  $last7 = 0L
+  for ($offset = 1; $offset -le 7; $offset++) {
+    $key = [datetime]::UtcNow.Date.AddDays(-$offset).ToString("yyyy-MM-dd")
+    if ($buckets.ContainsKey($key)) { $last7 += [long]$buckets[$key] }
+  }
+  return [PSCustomObject]@{
+    Available = ($null -ne $official -or $localToday -gt 0)
+    TodayTokens = $todayTokens
+    TodayEstimated = (-not $hasOfficialToday)
+    Last7Tokens = $last7
+    DailyBuckets = $buckets
+    Source = if ($hasOfficialToday) { "official" } elseif ($localToday -gt 0) { "local" } else { "none" }
+  }
+}
+
+function Format-CompactTokenCount {
+  param([long]$Tokens)
+  if ($Tokens -ge 1000000000) { return ("{0:0.#}B" -f ($Tokens / 1000000000.0)) }
+  if ($Tokens -ge 1000000) { return ("{0:0.#}M" -f ($Tokens / 1000000.0)) }
+  if ($Tokens -ge 1000) { return ("{0:0.#}K" -f ($Tokens / 1000.0)) }
+  return [string]$Tokens
+}
+
+function Format-TokenTooltipText {
+  param([datetime]$Date, [long]$Tokens, [bool]$HasData, [string]$Language = "zh", [bool]$Estimated = $false)
+  $dateText = $Date.ToString("MM/dd") + " (UTC)"
+  if (-not $HasData) {
+    return $dateText + "`n" + $(if ($Language -eq "en") { "No data" } else { U "\u6682\u65e0\u6570\u636e" })
+  }
+  $sourceText = if ($Estimated) {
+    if ($Language -eq "en") { "Local estimate" } else { U "\u672c\u673a\u4f30\u7b97" }
+  } else {
+    if ($Language -eq "en") { "Account data" } else { U "\u8d26\u6237\u6570\u636e" }
+  }
+  return $dateText + "`n" + ("{0:N0} Token" -f $Tokens) + "`n" + $sourceText
+}
+
 function Format-Duration {
   param($ResetAt, [string]$Language = "zh")
   if ($null -eq $ResetAt) { return "--" }
@@ -844,6 +1111,11 @@ con.close()
   Assert-True ((Get-UsageColor 40.0) -eq "#F5B83D") "medium remaining should be amber"
   Assert-True ((Get-UsageColor 10.0) -eq "#F25C5C") "low remaining should be red"
   Assert-True ((Get-UsageColor $null) -eq "#43E6A8") "null remaining should default to green"
+  $petAnchor = [PSCustomObject]@{ Left = 1270; Top = 307; Width = 118; Height = 118 }
+  $unrelatedSearchBand = [PSCustomObject]@{ HWND = [IntPtr]1; X = 548; Y = 35; Width = 204; Height = 40 }
+  Assert-True ($null -eq (Select-PetWindowCandidate -Windows @($unrelatedSearchBand) -Anchor $petAnchor)) "a distant search-bar window must not replace the persisted pet anchor"
+  $nearPetWindow = [PSCustomObject]@{ HWND = [IntPtr]2; X = 1272; Y = 309; Width = 116; Height = 116 }
+  Assert-True ((Select-PetWindowCandidate -Windows @($unrelatedSearchBand, $nearPetWindow) -Anchor $petAnchor).HWND -eq [IntPtr]2) "a near square pet window should be selected"
   Assert-True ((Format-Duration -ResetAt ([datetime]::Now.AddHours(26)) -Language "en") -eq "1d 2h") "en duration days should format as d/h"
   Assert-True ((Format-Duration -ResetAt ([datetime]::Now.AddMinutes(90)) -Language "en") -eq "1h 30m") "en duration hours should format as h/m"
   Assert-True ((Format-Duration -ResetAt ([datetime]::Now.AddSeconds(45)) -Language "en") -eq "45s") "en duration seconds should format as s"
@@ -851,6 +1123,26 @@ con.close()
   Assert-True ((Get-SavedLanguage) -eq "zh" -or (Get-SavedLanguage) -eq "en") "saved language should be valid"
   $hk = Convert-HotkeyToVk -Hotkey "Ctrl+Alt+Shift+L"
   Assert-True ($hk.Vk -eq 0x4C -and $hk.Mods -eq 0x7) "Ctrl+Alt+Shift+L should map to vk 0x4C mods 0x7"
+  Assert-True ((Format-CompactTokenCount 1600000) -eq "1.6M") "token count should format in millions"
+  Assert-True ((Format-CompactTokenCount 39300000) -eq "39.3M") "large token count should keep one decimal"
+  $tooltipText = Format-TokenTooltipText -Date ([datetime]"2026-08-13") -Tokens 24638120 -HasData $true -Language "en"
+  Assert-True ($tooltipText -match "08/13 \(UTC\)" -and $tooltipText -match "24,638,120 Token" -and $tooltipText -match "Account data") "token tooltip should include date, full value, and source"
+  Assert-True ((Format-TokenTooltipText -Date ([datetime]"2026-08-13") -Tokens 0 -HasData $false -Language "en") -match "No data") "missing token bucket should not be presented as zero usage"
+  $tempRollout = Join-Path ([System.IO.Path]::GetTempPath()) ("codex_usage_remaining_rollout_{0}.jsonl" -f ([guid]::NewGuid().ToString("N")))
+  try {
+    $utcDate = [datetime]::UtcNow.ToString("yyyy-MM-dd")
+    @(
+      ('{{"timestamp":"{0}T00:00:00Z","type":"event_msg","payload":{{"type":"token_count","info":{{"last_token_usage":{{"total_tokens":1200}}}}}}}}' -f $utcDate),
+      ('{{"timestamp":"{0}T00:01:00Z","type":"event_msg","payload":{{"type":"token_count","info":{{"last_token_usage":{{"total_tokens":800}}}}}}}}' -f $utcDate)
+    ) | Set-Content -LiteralPath $tempRollout -Encoding UTF8
+    Add-Content -LiteralPath $tempRollout -Value "" -Encoding UTF8
+    $tokenDelta = Read-NewTokenCountEvents -Path $tempRollout -Offset 0 -UtcDate $utcDate
+    Assert-True ($tokenDelta.Tokens -eq 2000) "local token events should be accumulated"
+    $secondDelta = Read-NewTokenCountEvents -Path $tempRollout -Offset $tokenDelta.Offset -UtcDate $utcDate
+    Assert-True ($secondDelta.Tokens -eq 0) "saved byte offset should prevent duplicate token counting"
+  } finally {
+    if (Test-Path -LiteralPath $tempRollout) { Remove-Item -LiteralPath $tempRollout -Force }
+  }
 
   Write-Output "SelfTest OK"
 }
@@ -1047,6 +1339,7 @@ function Run-Overlay {
 
   function Refresh-Usage {
     $script:UsageState = Get-Usage
+    $script:TokenUsageState = Get-TokenUsage
     if (-not $script:UsageState.Available) {
       Write-AppLog "Usage unavailable."
     }
@@ -1058,6 +1351,7 @@ function Run-Overlay {
     Set-SavedLanguage -Language $script:Language
     Update-Text
     Update-Overlay
+    try { Update-ControlPanel } catch {}
     Write-AppLog ("Language toggled to {0}" -f $script:Language)
   }
 
@@ -1229,7 +1523,7 @@ function Run-Overlay {
 
   $trayIcon = New-Object System.Windows.Forms.NotifyIcon
   $trayIcon.Text = $DisplayName
-  $iconPath = Join-Path (Split-Path -Parent ([System.IO.Path]::GetFullPath($PSCommandPath))) "assets\app-icon.ico"
+    $iconPath = Join-Path (Split-Path -Parent ([System.IO.Path]::GetFullPath($PSCommandPath))) "assets\app-icon-terminal-black.ico"
   if (Test-Path -LiteralPath $iconPath) {
     $trayIcon.Icon = New-Object System.Drawing.Icon $iconPath
   } else {
@@ -1243,8 +1537,8 @@ function Run-Overlay {
   try {
   Write-AppLog "Control panel initialization started."
   $controlWindow = New-Object System.Windows.Window
-  $controlWindow.Width = 280
-  $controlWindow.Height = 330
+  $controlWindow.Width = 350
+  $controlWindow.Height = 520
   $controlWindow.WindowStyle = [System.Windows.WindowStyle]::None
   $controlWindow.ResizeMode = [System.Windows.ResizeMode]::NoResize
   $controlWindow.AllowsTransparency = $true
@@ -1258,12 +1552,12 @@ function Run-Overlay {
   $controlRoot.Background = New-Brush "#080A0C" 252
   $controlRoot.BorderBrush = New-Brush "#FFFFFF" 38
   $controlRoot.BorderThickness = New-Object System.Windows.Thickness 1
-  $controlRoot.Padding = New-Object System.Windows.Thickness 16
+  $controlRoot.Padding = New-Object System.Windows.Thickness 18
   $controlWindow.Content = $controlRoot
 
   $controlGrid = New-Object System.Windows.Controls.Grid
   $controlRoot.Child = $controlGrid
-  foreach ($height in @(42, 76, 32, 32, 32, 1, 32, 32, 19)) {
+  foreach ($height in @(48, 92, 160, 31, 31, 31, 1, 31, 31, 13)) {
     $row = New-Object System.Windows.Controls.RowDefinition
     $row.Height = New-Object System.Windows.GridLength $height
     $controlGrid.RowDefinitions.Add($row)
@@ -1273,14 +1567,14 @@ function Run-Overlay {
   $header.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
   $header.ColumnDefinitions.Add((New-Object System.Windows.Controls.ColumnDefinition))
   $header.ColumnDefinitions[0].Width = New-Object System.Windows.GridLength -ArgumentList 1,([System.Windows.GridUnitType]::Star)
-  $header.ColumnDefinitions[1].Width = New-Object System.Windows.GridLength 72
+  $header.ColumnDefinitions[1].Width = New-Object System.Windows.GridLength 54
   [System.Windows.Controls.Grid]::SetRow($header, 0)
   [void]$controlGrid.Children.Add($header)
   $headerText = New-Object System.Windows.Controls.StackPanel
   $title = New-Object System.Windows.Controls.TextBlock
   $title.Text = $DisplayName
   $title.Foreground = New-Brush "#F5F2E8"
-  $title.FontSize = 16
+  $title.FontSize = 17
   $title.FontWeight = [System.Windows.FontWeights]::SemiBold
   $status = New-Object System.Windows.Controls.TextBlock
   $status.Text = if ($script:Language -eq "en") { "● Running" } else { U "\u25cf \u8fd0\u884c\u4e2d" }
@@ -1289,21 +1583,28 @@ function Run-Overlay {
   $status.Margin = New-Object System.Windows.Thickness 0,4,0,0
   [void]$headerText.Children.Add($title); [void]$headerText.Children.Add($status)
   [void]$header.Children.Add($headerText)
-  $glyph = New-Object System.Windows.Controls.TextBlock
-  $glyph.Text = ">_<"
-  $glyph.Foreground = New-Brush "#F5F2E8"
-  $glyph.FontFamily = New-Object System.Windows.Media.FontFamily "Consolas"
-  $glyph.FontSize = 16
-  $glyph.FontWeight = [System.Windows.FontWeights]::Bold
-  $glyph.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
-  $glyph.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
-  [System.Windows.Controls.Grid]::SetColumn($glyph, 1)
-  [void]$header.Children.Add($glyph)
+  $headerIcon = New-Object System.Windows.Shapes.Ellipse
+  $headerIcon.Width = 42; $headerIcon.Height = 42
+  $headerIcon.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+  $headerIcon.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+    $headerIconPath = Join-Path (Split-Path -Parent ([System.IO.Path]::GetFullPath($PSCommandPath))) "assets\app-icon-terminal-black.png"
+  if (Test-Path -LiteralPath $headerIconPath) {
+    $headerBitmap = New-Object System.Windows.Media.Imaging.BitmapImage
+    $headerBitmap.BeginInit(); $headerBitmap.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+    $headerBitmap.UriSource = New-Object System.Uri -ArgumentList $headerIconPath
+    $headerBitmap.EndInit(); $headerBitmap.Freeze()
+    $headerBrush = New-Object System.Windows.Media.ImageBrush
+    $headerBrush.ImageSource = $headerBitmap
+    $headerBrush.Stretch = [System.Windows.Media.Stretch]::UniformToFill
+    $headerIcon.Fill = $headerBrush
+  }
+  [System.Windows.Controls.Grid]::SetColumn($headerIcon, 1)
+  [void]$header.Children.Add($headerIcon)
 
   $usageCard = New-Object System.Windows.Controls.Border
   $usageCard.Background = New-Brush "#11161B" 255
   $usageCard.CornerRadius = New-Object System.Windows.CornerRadius 12
-  $usageCard.Margin = New-Object System.Windows.Thickness 0,5,0,8
+  $usageCard.Margin = New-Object System.Windows.Thickness 0,4,0,8
   [System.Windows.Controls.Grid]::SetRow($usageCard, 1)
   [void]$controlGrid.Children.Add($usageCard)
   $usageCanvas = New-Object System.Windows.Controls.Canvas
@@ -1311,15 +1612,15 @@ function Run-Overlay {
   $controlLabel = New-Object System.Windows.Controls.TextBlock
   $controlLabel.Text = if ($script:Language -eq "en") { "7-day remaining" } else { U "7 \u5929\u5269\u4f59" }
   $controlLabel.Foreground = New-Brush "#98A4AC"
-  $controlLabel.FontSize = 11
-  [System.Windows.Controls.Canvas]::SetLeft($controlLabel, 14); [System.Windows.Controls.Canvas]::SetTop($controlLabel, 10)
+  $controlLabel.FontSize = 12
+  [System.Windows.Controls.Canvas]::SetLeft($controlLabel, 16); [System.Windows.Controls.Canvas]::SetTop($controlLabel, 11)
   [void]$usageCanvas.Children.Add($controlLabel)
   $controlPercent = New-Object System.Windows.Controls.TextBlock
   $controlPercent.Text = "--%"
   $controlPercent.Foreground = New-Brush "#F5F2E8"
-  $controlPercent.FontSize = 28
+  $controlPercent.FontSize = 34
   $controlPercent.FontWeight = [System.Windows.FontWeights]::SemiBold
-  [System.Windows.Controls.Canvas]::SetLeft($controlPercent, 14); [System.Windows.Controls.Canvas]::SetTop($controlPercent, 28)
+  [System.Windows.Controls.Canvas]::SetLeft($controlPercent, 16); [System.Windows.Controls.Canvas]::SetTop($controlPercent, 31)
   [void]$usageCanvas.Children.Add($controlPercent)
   $controlTrack = New-Object System.Windows.Shapes.Ellipse
   $controlTrack.Stroke = New-Brush "#FFFFFF" 28
@@ -1330,7 +1631,67 @@ function Run-Overlay {
   $controlArc.StrokeStartLineCap = [System.Windows.Media.PenLineCap]::Round
   $controlArc.StrokeEndLineCap = [System.Windows.Media.PenLineCap]::Round
   foreach ($shape in @($controlTrack, $controlArc)) { [void]$usageCanvas.Children.Add($shape) }
-  Set-EllipseBounds -Ellipse $controlTrack -CenterX 210 -CenterY 34 -Radius 24
+  Set-EllipseBounds -Ellipse $controlTrack -CenterX 270 -CenterY 42 -Radius 28
+
+  $tokenCanvas = New-Object System.Windows.Controls.Canvas
+  [System.Windows.Controls.Grid]::SetRow($tokenCanvas, 2)
+  [void]$controlGrid.Children.Add($tokenCanvas)
+  $tokenHeading = New-Object System.Windows.Controls.TextBlock
+  $tokenHeading.Text = if ($script:Language -eq "en") { "Token activity" } else { "Token " + (U "\u6d3b\u52a8") }
+  $tokenHeading.Foreground = New-Brush "#F5F2E8"; $tokenHeading.FontSize = 14; $tokenHeading.FontWeight = [System.Windows.FontWeights]::SemiBold
+  [System.Windows.Controls.Canvas]::SetLeft($tokenHeading, 0); [System.Windows.Controls.Canvas]::SetTop($tokenHeading, 10)
+  [void]$tokenCanvas.Children.Add($tokenHeading)
+  $todayLabel = New-Object System.Windows.Controls.TextBlock
+  $todayLabel.Text = if ($script:Language -eq "en") { "Today" } else { U "\u4eca\u65e5" }
+  $todayLabel.Foreground = New-Brush "#98A4AC"; $todayLabel.FontSize = 12
+  [System.Windows.Controls.Canvas]::SetLeft($todayLabel, 0); [System.Windows.Controls.Canvas]::SetTop($todayLabel, 49)
+  [void]$tokenCanvas.Children.Add($todayLabel)
+  $todayTokenText = New-Object System.Windows.Controls.TextBlock
+  $todayTokenText.Text = "--"; $todayTokenText.Foreground = New-Brush "#F5F2E8"; $todayTokenText.FontSize = 22; $todayTokenText.FontWeight = [System.Windows.FontWeights]::SemiBold
+  [System.Windows.Controls.Canvas]::SetLeft($todayTokenText, 54); [System.Windows.Controls.Canvas]::SetTop($todayTokenText, 41)
+  [void]$tokenCanvas.Children.Add($todayTokenText)
+  $estimateText = New-Object System.Windows.Controls.TextBlock
+  $estimateText.Text = if ($script:Language -eq "en") { "Local estimate" } else { U "\u672c\u673a\u4f30\u7b97" }
+  $estimateText.Foreground = New-Brush "#65717A"; $estimateText.FontSize = 10
+  [System.Windows.Controls.Canvas]::SetLeft($estimateText, 0); [System.Windows.Controls.Canvas]::SetTop($estimateText, 75)
+  [void]$tokenCanvas.Children.Add($estimateText)
+  $metricDivider = New-Object System.Windows.Controls.Border
+  $metricDivider.Width = 1; $metricDivider.Height = 45; $metricDivider.Background = New-Brush "#FFFFFF" 35
+  [System.Windows.Controls.Canvas]::SetLeft($metricDivider, 157); [System.Windows.Controls.Canvas]::SetTop($metricDivider, 43)
+  [void]$tokenCanvas.Children.Add($metricDivider)
+  $last7Label = New-Object System.Windows.Controls.TextBlock
+  $last7Label.Text = if ($script:Language -eq "en") { "Last 7d" } else { U "\u8fd1 7 \u5929" }
+  $last7Label.Foreground = New-Brush "#98A4AC"; $last7Label.FontSize = 12
+  [System.Windows.Controls.Canvas]::SetLeft($last7Label, 188); [System.Windows.Controls.Canvas]::SetTop($last7Label, 49)
+  [void]$tokenCanvas.Children.Add($last7Label)
+  $last7TokenText = New-Object System.Windows.Controls.TextBlock
+  $last7TokenText.Text = "--"; $last7TokenText.Foreground = New-Brush "#F5F2E8"; $last7TokenText.FontSize = 22; $last7TokenText.FontWeight = [System.Windows.FontWeights]::SemiBold
+  $last7TokenText.Width = 92; $last7TokenText.TextAlignment = [System.Windows.TextAlignment]::Right
+  [System.Windows.Controls.Canvas]::SetLeft($last7TokenText, 222); [System.Windows.Controls.Canvas]::SetTop($last7TokenText, 41)
+  [void]$tokenCanvas.Children.Add($last7TokenText)
+  $tokenBars = @(); $tokenDateLabels = @(); $tokenTooltipTexts = @()
+  foreach ($index in 0..6) {
+    $bar = New-Object System.Windows.Shapes.Rectangle
+    $bar.Width = 5; $bar.Height = 4; $bar.RadiusX = 2.5; $bar.RadiusY = 2.5; $bar.Fill = New-Brush "#43E6A8"
+    [System.Windows.Controls.Canvas]::SetLeft($bar, 13 + (44 * $index)); [System.Windows.Controls.Canvas]::SetTop($bar, 132)
+    $tooltipText = New-Object System.Windows.Controls.TextBlock
+    $tooltipText.Foreground = New-Brush "#F5F2E8"; $tooltipText.FontSize = 11; $tooltipText.LineHeight = 17
+    $tooltip = New-Object System.Windows.Controls.ToolTip
+    $tooltip.Background = New-Brush "#171C20"; $tooltip.BorderBrush = New-Brush "#FFFFFF" 32
+    $tooltip.BorderThickness = New-Object System.Windows.Thickness 1; $tooltip.Padding = New-Object System.Windows.Thickness 9,6,9,6
+    $tooltip.Content = $tooltipText; $tooltip.Placement = [System.Windows.Controls.Primitives.PlacementMode]::Mouse
+    [System.Windows.Controls.ToolTipService]::SetInitialShowDelay($bar, 120)
+    [System.Windows.Controls.ToolTipService]::SetShowDuration($bar, 12000)
+    $bar.ToolTip = $tooltip
+    $bar.Add_MouseEnter({ param($sender, $eventArgs) $sender.Width = 7; $sender.Opacity = 1.0 })
+    $bar.Add_MouseLeave({ param($sender, $eventArgs) $sender.Width = 5; $sender.Opacity = if ([bool]$sender.Tag) { 1.0 } else { 0.22 } })
+    [void]$tokenCanvas.Children.Add($bar); $tokenBars += $bar; $tokenTooltipTexts += $tooltipText
+    $dateLabel = New-Object System.Windows.Controls.TextBlock
+    $dateLabel.Text = "--/--"; $dateLabel.Width = 40; $dateLabel.TextAlignment = [System.Windows.TextAlignment]::Center
+    $dateLabel.Foreground = New-Brush "#65717A"; $dateLabel.FontSize = 9
+    [System.Windows.Controls.Canvas]::SetLeft($dateLabel, -4 + (44 * $index)); [System.Windows.Controls.Canvas]::SetTop($dateLabel, 143)
+    [void]$tokenCanvas.Children.Add($dateLabel); $tokenDateLabels += $dateLabel
+  }
 
   $controlButtonTemplate = [System.Windows.Markup.XamlReader]::Parse(@'
 <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -1420,9 +1781,9 @@ function Run-Overlay {
   $startupValue = if ($script:AutostartEnabled) { "ON" } else { "OFF" }
   $languageLabel = if ($script:Language -eq "en") { "Language" } else { U "\u754c\u9762\u8bed\u8a00" }
   $languageValue = if ($script:Language -eq "en") { "English  ›" } else { U "\u4e2d\u6587  \u203a" }
-  $overlayRow = New-ControlRow 2 $overlayLabel "ON"
-  $startupRow = New-ControlRow 3 $startupLabel $startupValue
-  $languageRow = New-ControlRow 4 $languageLabel $languageValue
+  $overlayRow = New-ControlRow 3 $overlayLabel "ON"
+  $startupRow = New-ControlRow 4 $startupLabel $startupValue
+  $languageRow = New-ControlRow 5 $languageLabel $languageValue
   $overlayToggle = New-ToggleVisual
   $startupToggle = New-ToggleVisual
   $overlayRow.Value.Visibility = [System.Windows.Visibility]::Collapsed
@@ -1447,21 +1808,25 @@ function Run-Overlay {
   $separator = New-Object System.Windows.Controls.Border
   $separator.Background = New-Brush "#FFFFFF" 24
   $separator.Height = 1
-  [System.Windows.Controls.Grid]::SetRow($separator, 5); [void]$controlGrid.Children.Add($separator)
+  [System.Windows.Controls.Grid]::SetRow($separator, 6); [void]$controlGrid.Children.Add($separator)
   $logLabel = if ($script:Language -eq "en") { "View log" } else { U "\u67e5\u770b\u65e5\u5fd7" }
   $exitLabel = if ($script:Language -eq "en") { "Exit" } else { U "\u9000\u51fa\u7a0b\u5e8f" }
-  $controlLogRow = New-ControlRow 6 $logLabel "›"
-  $controlExitRow = New-ControlRow 7 $exitLabel "" "#FF6B62"
+  $controlLogRow = New-ControlRow 7 $logLabel "›"
+  $controlExitRow = New-ControlRow 8 $exitLabel "" "#FF6B62"
   $versionText = New-Object System.Windows.Controls.TextBlock
-  $versionText.Text = "v1.1.0"; $versionText.Foreground = New-Brush "#65717A"; $versionText.FontSize = 9
+  $versionText.Text = "v1.2.0"; $versionText.Foreground = New-Brush "#65717A"; $versionText.FontSize = 9
   $versionText.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
   $versionText.VerticalAlignment = [System.Windows.VerticalAlignment]::Bottom
-  [System.Windows.Controls.Grid]::SetRow($versionText, 8); [void]$controlGrid.Children.Add($versionText)
+  [System.Windows.Controls.Grid]::SetRow($versionText, 9); [void]$controlGrid.Children.Add($versionText)
 
   function Update-ControlPanel {
     $remaining = if ($script:UsageState.Available -and $null -ne $script:UsageState.SecondaryRemaining) { [double]$script:UsageState.SecondaryRemaining } elseif ($script:UsageState.Available -and $null -ne $script:UsageState.PrimaryRemaining) { [double]$script:UsageState.PrimaryRemaining } else { $null }
     $status.Text = if ($script:Language -eq "en") { "● Running" } else { U "\u25cf \u8fd0\u884c\u4e2d" }
     $controlLabel.Text = if ($script:Language -eq "en") { "7-day remaining" } else { U "7 \u5929\u5269\u4f59" }
+    $tokenHeading.Text = if ($script:Language -eq "en") { "Token activity" } else { "Token " + (U "\u6d3b\u52a8") }
+    $todayLabel.Text = if ($script:Language -eq "en") { "Today" } else { U "\u4eca\u65e5" }
+    $estimateText.Text = if ($script:Language -eq "en") { "Local estimate" } else { U "\u672c\u673a\u4f30\u7b97" }
+    $last7Label.Text = if ($script:Language -eq "en") { "Last 7d" } else { U "\u8fd1 7 \u5929" }
     $overlayRow.Label.Text = if ($script:Language -eq "en") { "Overlay" } else { U "\u60ac\u6d6e\u7a97" }
     $startupRow.Label.Text = if ($script:Language -eq "en") { "Start with Windows" } else { U "\u5f00\u673a\u81ea\u52a8\u542f\u52a8" }
     $languageRow.Label.Text = if ($script:Language -eq "en") { "Language" } else { U "\u754c\u9762\u8bed\u8a00" }
@@ -1478,7 +1843,30 @@ function Run-Overlay {
     $exitItem.Text = if ($script:Language -eq "en") { "Exit" } else { U "\u9000\u51fa" }
     $controlPercent.Text = if ($null -ne $remaining) { "{0:N0}%" -f $remaining } else { "--%" }
     $controlArc.Stroke = New-Brush (Get-UsageColor $remaining)
-    Set-ArcPath -Path $controlArc -CenterX 210 -CenterY 34 -Radius 24 -Percent $remaining
+    Set-ArcPath -Path $controlArc -CenterX 270 -CenterY 42 -Radius 28 -Percent $remaining
+    $todayPrefix = if ($script:TokenUsageState.TodayEstimated) { "~" } else { "" }
+    $todayTokenText.Text = if ($script:TokenUsageState.Available) { $todayPrefix + (Format-CompactTokenCount $script:TokenUsageState.TodayTokens) } else { "--" }
+    $estimateText.Visibility = if ($script:TokenUsageState.TodayEstimated -and $script:TokenUsageState.Available) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Hidden }
+    $last7TokenText.Text = if ($script:TokenUsageState.DailyBuckets.Count -gt 0) { Format-CompactTokenCount $script:TokenUsageState.Last7Tokens } else { "--" }
+    $dailyValues = @()
+    for ($displayIndex = 0; $displayIndex -lt 7; $displayIndex++) {
+      $daysAgo = 7 - $displayIndex
+      $date = [datetime]::UtcNow.Date.AddDays(-$daysAgo)
+      $key = $date.ToString("yyyy-MM-dd")
+      $value = if ($script:TokenUsageState.DailyBuckets.ContainsKey($key)) { [long]$script:TokenUsageState.DailyBuckets[$key] } else { 0L }
+      $hasData = $script:TokenUsageState.DailyBuckets.ContainsKey($key)
+      $dailyValues += $value
+      $tokenDateLabels[$displayIndex].Text = $date.ToString("MM/dd")
+      $tokenTooltipTexts[$displayIndex].Text = Format-TokenTooltipText -Date $date -Tokens $value -HasData $hasData -Language $script:Language
+      $tokenBars[$displayIndex].Tag = $hasData
+    }
+    $maxDaily = [long](($dailyValues | Measure-Object -Maximum).Maximum)
+    for ($displayIndex = 0; $displayIndex -lt 7; $displayIndex++) {
+      $height = if ($maxDaily -gt 0) { 8.0 + (36.0 * ([double]$dailyValues[$displayIndex] / [double]$maxDaily)) } else { 4.0 }
+      $tokenBars[$displayIndex].Height = $height
+      [System.Windows.Controls.Canvas]::SetTop($tokenBars[$displayIndex], 138.0 - $height)
+      $tokenBars[$displayIndex].Opacity = if ($dailyValues[$displayIndex] -gt 0) { 1.0 } else { 0.22 }
+    }
     Set-ToggleVisual -Toggle $overlayToggle -Enabled (-not $script:OverlayPaused)
     Set-ToggleVisual -Toggle $startupToggle -Enabled $script:AutostartEnabled
     if ($script:Language -eq "zh") { $zhColor = "#43E6A8"; $enColor = "#98A4AC" }
@@ -1577,12 +1965,14 @@ function Run-Overlay {
   $app.ShutdownMode = [System.Windows.ShutdownMode]::OnExplicitShutdown
   $exitItem.Add_Click({
     Write-AppLog "Exit requested from tray."
+    Stop-UsageAppServer
     $trayIcon.Visible = $false
     $trayIcon.Dispose()
     if (Test-Path -LiteralPath $PidPath) { Remove-Item -LiteralPath $PidPath -Force -ErrorAction SilentlyContinue }
     $app.Shutdown()
   })
   $app.Add_Exit({
+    Stop-UsageAppServer
     if ($null -ne $trayIcon) {
       $trayIcon.Visible = $false
       $trayIcon.Dispose()
