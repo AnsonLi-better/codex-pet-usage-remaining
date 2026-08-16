@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/license-MIT-43E6A8" alt="MIT License"/>
   <img src="https://img.shields.io/badge/platform-Windows-0078d6" alt="Windows"/>
   <img src="https://img.shields.io/badge/powershell-5.1%2B-5391FE" alt="PowerShell 5.1+"/>
-  <img src="https://img.shields.io/badge/release-v1.2.0-2ea44f" alt="v1.2.0"/>
+  <img src="https://img.shields.io/badge/release-v1.3.0-2ea44f" alt="v1.3.0"/>
 </p>
 
 <p align="center">
@@ -34,9 +34,13 @@ An open-source Windows companion app: hover the Codex pet to see a real-time rem
 
 The installer is the recommended option. You do not need to open the project folder or type commands:
 
-1. Open [Releases](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest) and download `CodexUsageRemaining-Setup-*.exe`.
-2. Run the installer. It installs for the current user, launches immediately, and starts at Windows sign-in by default. Administrator access is not required.
+1. Open [Releases](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest) and choose an installer:
+   - **Complete installer (recommended)**: `CodexUsageRemaining-Setup-*.exe`, about 80 MB, includes the official statistics component and installs without network access.
+   - **Web installer**: `CodexUsageRemaining-WebSetup-*.exe`, a smaller installer that downloads about 80 MB during installation.
+2. Run the installer. Both editions configure everything automatically; Codex CLI, Node.js, and npm are not required separately.
 3. Open Codex Desktop, enter `/pet`, and hover the pet. The remaining-usage card confirms that the app is working.
+
+If you are unsure, choose the **complete installer**. If WebSetup cannot download the component, the app still installs and uses today's local estimate. Run WebSetup again later or install the complete edition to finish official statistics.
 
 After installation, a `>_` icon appears in the Windows notification area. If it is not visible, expand the `^` overflow area on the taskbar.
 
@@ -60,7 +64,7 @@ After exiting, reopen **Codex Usage Remaining** from the Start menu; there is no
 - 🖱️ **Hover to show**: appears when the cursor enters the pet area and hides 10 seconds after leaving.
 - 🎯 **Live pet tracking**: the usage card follows when `/pet` is dragged.
 - 💠 **Remaining-usage ring**: shows the 7-day remaining percentage and update timing.
-- 📊 **Token activity panel**: incrementally estimates today from local Codex session logs and, when available, supplements it with official daily totals from a private Codex app-server.
+- 📊 **Token activity panel**: incrementally estimates today from local Codex session logs; the installer automatically configures a private Codex app-server for official daily totals.
 - 🎨 **Color tiers**: green at ≥60%, amber at 30–59%, and red below 30%.
 - 🎛️ **Tray management**: pause, resume, change language, manage autostart, view logs, and exit without opening a folder.
 - 🌐 **Chinese and English UI**: use the control panel or the `Ctrl+Alt+Shift+L` global hotkey.
@@ -78,7 +82,7 @@ After exiting, reopen **Codex Usage Remaining** from the Start menu; there is no
 - Windows 10 or Windows 11
 - Windows PowerShell 5.1 (normally included with Windows)
 - [Codex Desktop](https://openai.com/codex/) signed in
-- Standalone Codex CLI (optional; supplies official daily token totals when available, while today's local estimate works without it)
+- The complete installer works offline; WebSetup requires internet access during the first installation
 
 ## 🔒 Data and privacy
 
@@ -97,7 +101,7 @@ https://chatgpt.com/backend-api/wham/usage
 
 The app does not upload pet images, screenshots, prompts, repository contents, or log bodies.
 
-The local estimate reads only new `token_count` events incrementally; it does not rescan every session on each refresh. The private app-server starts only when official daily data is needed and an accessible Codex CLI is present, and it exits with the app.
+The local estimate reads only new `token_count` events incrementally; it does not rescan every session on each refresh. The installer downloads the private app-server from the official OpenAI GitHub Release and verifies its SHA-256 digest. It starts only when official daily data is needed and exits with the app.
 
 Runtime state is stored in:
 
@@ -118,10 +122,11 @@ The internal `CodexPetUsageOverlay` directory name is retained for upgrade compa
 4. **Why does a token value start with `~`?** `~` means the value is estimated from local Codex session logs rather than an official account total. It includes only readable sessions on this computer, so it may differ slightly from the final total.
 5. **Why is there no official value for today?** Official daily totals normally cover completed UTC dates only. Because today is still in progress, the app shows a live local estimate instead. In China Standard Time, the UTC date changes at 08:00.
 6. **Why is a daily bar missing?** A missing bar means no usable record was available for that date; it does not confirm zero usage. Hover any populated bar to see its full token count and data source.
-7. **Why is there another Codex process in Task Manager?** When an accessible Codex CLI is installed, the app starts a private app-server to read official daily totals. It does not listen on a public port, communicates only as needed in the background, and exits with this app. The local estimate itself does not require it.
-8. **How do I disable automatic startup?** Click the tray icon and turn off **Start with Windows**. You do not need to open the installation folder.
-9. **How do I reopen it after exiting?** Open the Windows Start menu and search for **Codex Usage Remaining**.
-10. **Why does the tray icon appear before Codex is open?** The background controller starts at Windows sign-in so its tray controls are available. The overlay next to the pet appears only while Codex `/pet` is available.
+7. **Why is there another Codex process in Task Manager?** The app starts the private app-server configured during installation to read official daily totals. It does not listen on a public port, communicates only as needed in the background, and exits with this app. The local estimate itself does not require it.
+8. **What if component setup fails in WebSetup?** The app still provides the remaining quota and today's local estimate. Run WebSetup again after the network is restored, or install the complete edition, to finish the component.
+9. **How do I disable automatic startup?** Click the tray icon and turn off **Start with Windows**. You do not need to open the installation folder.
+10. **How do I reopen it after exiting?** Open the Windows Start menu and search for **Codex Usage Remaining**.
+11. **Why does the tray icon appear before Codex is open?** The background controller starts at Windows sign-in so its tray controls are available. The overlay next to the pet appears only while Codex `/pet` is available.
 
 ## 🛠️ Run from source (developers and advanced users)
 
@@ -189,6 +194,8 @@ Common options:
 CodexPetUsageOverlay.ps1       main application
 installer/                     Inno Setup definition
 Build-Installer.ps1            installer build script
+Install-OfficialStats.ps1      official statistics component download and verification
+THIRD_PARTY_NOTICES.md         third-party component source and license notice
 Install.bat / Uninstall.bat    source autostart management
 Start.bat / Stop.bat           source start and stop
 Status.bat                     status diagnostics
@@ -200,7 +207,7 @@ AGENT_SETUP.md                 agent setup instructions
 
 - `wham/usage` is not a stable public API; fields and availability may change.
 - Today's token value is a local estimate from this computer and does not include complete account usage from other devices.
-- Official daily totals require an accessible Codex CLI; today's estimate and the 7-day remaining quota still work without it.
+- WebSetup downloads the official statistics component during first installation; the complete installer includes it. Today's estimate and the 7-day remaining quota still work if the download fails.
 - Pet-window detection uses size and position heuristics and may select the wrong window in edge cases.
 - The tray and WPF control panel still require manual UI verification in a real Windows desktop session.
 

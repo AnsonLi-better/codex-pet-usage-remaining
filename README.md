@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/license-MIT-43E6A8" alt="MIT License"/>
   <img src="https://img.shields.io/badge/platform-Windows-0078d6" alt="Windows"/>
   <img src="https://img.shields.io/badge/powershell-5.1%2B-5391FE" alt="PowerShell 5.1+"/>
-  <img src="https://img.shields.io/badge/release-v1.2.0-2ea44f" alt="v1.2.0"/>
+  <img src="https://img.shields.io/badge/release-v1.3.0-2ea44f" alt="v1.3.0"/>
 </p>
 
 <p align="center">
@@ -34,9 +34,13 @@
 
 推荐使用正式安装包，不需要进入项目目录或手动输入命令：
 
-1. 打开 [Releases](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest)，下载 `CodexUsageRemaining-Setup-*.exe`。
-2. 双击安装。程序会安装到当前用户目录、立即启动，并默认随 Windows 登录启动，无需管理员权限。
+1. 打开 [Releases](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest)，按需要选择安装包：
+   - **完整安装版（推荐）**：`CodexUsageRemaining-Setup-*.exe`，约 80 MB，内置官方统计组件，安装过程无需联网。
+   - **在线安装版**：`CodexUsageRemaining-WebSetup-*.exe`，安装包较小，但安装时需要联网下载约 80 MB 的官方统计组件。
+2. 双击安装。两个版本都会自动完成配置，无需另装 Codex CLI、Node.js 或 npm。
 3. 打开 Codex Desktop，输入 `/pet`，将鼠标移到宠物上；看到剩余额度卡片即表示运行成功。
+
+如果不确定该选哪个，直接下载 **完整安装版**。在线安装版下载组件失败时，主程序仍会正常安装并使用今日本机估算；以后重新运行在线安装版，或改装完整安装版，即可补全官方统计组件。
 
 安装后，Windows 通知区域会出现 `>_` 图标。如果没有直接看到，请展开任务栏右侧的 `^` 折叠区域。
 
@@ -60,7 +64,7 @@
 - 🖱️ **宠物悬停显示**：鼠标进入宠物区域时显示，离开后 10 秒自动隐藏。
 - 🎯 **实时跟随**：拖动 `/pet` 宠物时，额度卡片跟随移动。
 - 💠 **剩余额度光环**：显示 7 天窗口剩余百分比和更新时间。
-- 📊 **Token 活动面板**：今日数据使用本机 Codex 会话日志增量估算；可用时通过随程序启动的私有 Codex app-server 补充官方每日数据。
+- 📊 **Token 活动面板**：今日数据使用本机 Codex 会话日志增量估算；安装器自动配置私有 Codex app-server，用于补充官方每日数据。
 - 🎨 **状态变色**：剩余 ≥60% 为绿色、30–59% 为琥珀色、<30% 为红色。
 - 🎛️ **托盘管理**：无需进入文件夹，即可暂停、恢复、切换语言、管理自启和退出。
 - 🌐 **中英双语**：支持控制面板选择，也保留 `Ctrl+Alt+Shift+L` 全局快捷键。
@@ -78,7 +82,7 @@
 - Windows 10 或 Windows 11
 - Windows PowerShell 5.1（系统通常自带）
 - 已登录的 [Codex Desktop](https://openai.com/codex/)
-- 独立 Codex CLI（可选；存在时用于读取官方每日 Token，缺少时今日本机估算仍可使用）
+- 完整安装版无需联网安装；在线安装版首次安装时需要访问互联网
 
 ## 🔒 数据与隐私
 
@@ -97,7 +101,7 @@ https://chatgpt.com/backend-api/wham/usage
 
 程序不会上传宠物图片、屏幕截图、prompt、仓库内容或日志正文。
 
-本机估算只增量读取新增的 `token_count` 事件，不会反复扫描全部会话。私有 app-server 仅在程序需要官方每日数据且本机存在可用 Codex CLI 时启动，并会在程序退出时一同结束。
+本机估算只增量读取新增的 `token_count` 事件，不会反复扫描全部会话。私有 app-server 由安装器从 OpenAI 官方 GitHub Release 下载并校验 SHA-256，仅在需要官方每日数据时启动，并会在程序退出时一同结束。
 
 运行时状态保存在：
 
@@ -118,10 +122,11 @@ https://chatgpt.com/backend-api/wham/usage
 4. **Token 数值前为什么有 `~`？** `~` 表示该值来自本机 Codex 会话日志估算，而非官方账户汇总；只统计当前电脑能读到的会话，可能与最终统计略有差异。
 5. **为什么今天没有官方数据？** 官方每日统计只覆盖已结束的 UTC 日期，今天尚未结算，所以用本机会话日志给出实时估算。UTC 日期在中国标准时间每天 08:00 切换。
 6. **为什么某一天没有柱子？** 没有柱子表示该日期没有可用记录，不等同于已确认用量为 0；鼠标移到有数据的柱子上可查看完整数值和数据来源。
-7. **为什么任务管理器里多了一个 Codex 进程？** 当本机有可用 Codex CLI 时，程序会启动私有 app-server 读取官方每日统计；它不监听公共端口、按需后台通信，并随程序退出。本机估算本身不需要它。
-8. **如何关闭开机启动？** 点击托盘图标，在控制面板中关闭“开机自动启动”，无需进入安装目录。
-9. **退出后如何重新打开？** 打开 Windows 开始菜单，搜索 **Codex Usage Remaining**。
-10. **为什么开机后托盘图标出现但 Codex 还没打开？** 后台控制程序随 Windows 登录启动，以便提供托盘开关；宠物旁的悬浮窗只有在 Codex `/pet` 可用时才出现。
+7. **为什么任务管理器里多了一个 Codex 进程？** 程序会启动安装时自动配置的私有 app-server 读取官方每日统计；它不监听公共端口、按需后台通信，并随程序退出。本机估算本身不需要它。
+8. **在线安装版配置组件失败怎么办？** 主程序仍可正常使用剩余额度和今日本机估算。网络恢复后重新运行在线安装版，或直接安装完整安装版，即可补全组件。
+9. **如何关闭开机启动？** 点击托盘图标，在控制面板中关闭“开机自动启动”，无需进入安装目录。
+10. **退出后如何重新打开？** 打开 Windows 开始菜单，搜索 **Codex Usage Remaining**。
+11. **为什么开机后托盘图标出现但 Codex 还没打开？** 后台控制程序随 Windows 登录启动，以便提供托盘开关；宠物旁的悬浮窗只有在 Codex `/pet` 可用时才出现。
 
 ## 🛠️ 从源码运行（开发者 / 高级用户）
 
@@ -189,6 +194,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.p
 CodexPetUsageOverlay.ps1       主程序
 installer/                     Inno Setup 安装器定义
 Build-Installer.ps1            安装包构建脚本
+Install-OfficialStats.ps1      官方统计组件下载与校验
+THIRD_PARTY_NOTICES.md         第三方组件来源与许可证说明
 Install.bat / Uninstall.bat    源码版开机启动管理
 Start.bat / Stop.bat           源码版启动和停止
 Status.bat                     状态诊断
@@ -200,7 +207,7 @@ AGENT_SETUP.md                 Agent 安装说明
 
 - `wham/usage` 不是公开稳定 API，字段和可用性未来可能变化。
 - 今日 Token 是当前电脑上的本地估算，不代表账户在其他设备上的完整用量。
-- 官方每日统计依赖本机存在程序可访问的 Codex CLI；没有时仍可显示今日估算和 7 天剩余额度。
+- 在线安装版首次安装时需要联网下载官方统计组件；完整安装版已内置组件。下载失败时仍可显示今日估算和 7 天剩余额度。
 - 宠物窗口识别使用尺寸和位置启发式，极端情况下可能选错窗口。
 - 托盘和 WPF 控制面板目前仍需要在真实 Windows 桌面环境中进行手动 UI 验证。
 

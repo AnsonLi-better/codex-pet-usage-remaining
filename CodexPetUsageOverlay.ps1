@@ -33,6 +33,7 @@ $script:HotkeyVk = [uint32]0
 $script:HotkeyMods = [uint32]0
 $script:UsageAppServerProcess = $null
 $script:UsageAppServerRequestId = 0
+$script:OfficialStatsUnavailableLogged = $false
 $script:TokenUsageState = [PSCustomObject]@{ Available = $false; TodayTokens = 0L; TodayEstimated = $true; Last7Tokens = 0L; DailyBuckets = @{}; Source = "none" }
 
 function U {
@@ -710,11 +711,24 @@ function Get-Usage {
 }
 
 function Find-StandaloneCodexBinary {
+  $scriptRoot = Split-Path -Parent ([System.IO.Path]::GetFullPath($PSCommandPath))
+  $bundledAppServer = Join-Path $scriptRoot "tools\codex-app-server.exe"
+  if (Test-Path -LiteralPath $bundledAppServer) {
+    try {
+      $item = Get-Item -LiteralPath $bundledAppServer -ErrorAction Stop
+      if (-not ($item.Attributes -band [System.IO.FileAttributes]::Encrypted)) {
+        return [PSCustomObject]@{ Path = $item.FullName; Arguments = ""; Source = "bundled" }
+      }
+    } catch {
+    }
+  }
   $command = Get-Command codex.exe -ErrorAction SilentlyContinue
   if ($null -ne $command) {
     try {
       $item = Get-Item -LiteralPath $command.Source -ErrorAction Stop
-      if (-not ($item.Attributes -band [System.IO.FileAttributes]::Encrypted)) { return $item.FullName }
+      if (-not ($item.Attributes -band [System.IO.FileAttributes]::Encrypted)) {
+        return [PSCustomObject]@{ Path = $item.FullName; Arguments = "app-server"; Source = "system" }
+      }
     } catch {
     }
   }
@@ -724,7 +738,9 @@ function Find-StandaloneCodexBinary {
       Where-Object { $_.FullName -like "*@openai*codex-win32-x64*" -and -not ($_.Attributes -band [System.IO.FileAttributes]::Encrypted) } |
       Sort-Object LastWriteTime -Descending |
       Select-Object -First 1
-    if ($null -ne $binary) { return $binary.FullName }
+    if ($null -ne $binary) {
+      return [PSCustomObject]@{ Path = $binary.FullName; Arguments = "app-server"; Source = "npm-cache" }
+    }
   }
   return $null
 }
@@ -788,10 +804,17 @@ function Start-UsageAppServer {
     Stop-UsageAppServer
   }
   $binary = Find-StandaloneCodexBinary
-  if ([string]::IsNullOrWhiteSpace($binary)) { return $false }
+  if ($null -eq $binary -or [string]::IsNullOrWhiteSpace([string]$binary.Path)) {
+    if (-not $script:OfficialStatsUnavailableLogged) {
+      Write-AppLog "Official statistics component is unavailable; using local estimate."
+      $script:OfficialStatsUnavailableLogged = $true
+    }
+    return $false
+  }
+  $script:OfficialStatsUnavailableLogged = $false
   $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-  $startInfo.FileName = $binary
-  $startInfo.Arguments = "app-server"
+  $startInfo.FileName = [string]$binary.Path
+  $startInfo.Arguments = [string]$binary.Arguments
   $startInfo.UseShellExecute = $false
   $startInfo.CreateNoWindow = $true
   $startInfo.RedirectStandardInput = $true
@@ -803,11 +826,11 @@ function Start-UsageAppServer {
     $script:UsageAppServerProcess = $process
     $script:UsageAppServerRequestId = 0
     $null = Invoke-UsageAppServerRequest -Method "initialize" -Params @{
-      clientInfo = @{ name = "codex_usage_remaining"; title = $DisplayName; version = "1.2.0" }
+      clientInfo = @{ name = "codex_usage_remaining"; title = $DisplayName; version = "1.3.0" }
       capabilities = @{ experimentalApi = $true }
     }
     Send-UsageAppServerMessage -Message @{ method = "initialized"; params = @{} }
-    Write-AppLog ("Private Codex app-server started. PID: {0}" -f $process.Id)
+    Write-AppLog ("Private Codex app-server started. PID: {0}, Source: {1}" -f $process.Id, $binary.Source)
     return $true
   } catch {
     Write-AppLog "Private Codex app-server unavailable: $($_.Exception.Message)"
@@ -1125,6 +1148,11 @@ con.close()
   Assert-True ($hk.Vk -eq 0x4C -and $hk.Mods -eq 0x7) "Ctrl+Alt+Shift+L should map to vk 0x4C mods 0x7"
   Assert-True ((Format-CompactTokenCount 1600000) -eq "1.6M") "token count should format in millions"
   Assert-True ((Format-CompactTokenCount 39300000) -eq "39.3M") "large token count should keep one decimal"
+  $appServerCandidate = Find-StandaloneCodexBinary
+  if ($null -ne $appServerCandidate) {
+    Assert-True (-not [string]::IsNullOrWhiteSpace([string]$appServerCandidate.Path)) "app-server candidate should include an executable path"
+    Assert-True (@("bundled", "system", "npm-cache") -contains [string]$appServerCandidate.Source) "app-server candidate should identify its source"
+  }
   $tooltipText = Format-TokenTooltipText -Date ([datetime]"2026-08-13") -Tokens 24638120 -HasData $true -Language "en"
   Assert-True ($tooltipText -match "08/13 \(UTC\)" -and $tooltipText -match "24,638,120 Token" -and $tooltipText -match "Account data") "token tooltip should include date, full value, and source"
   Assert-True ((Format-TokenTooltipText -Date ([datetime]"2026-08-13") -Tokens 0 -HasData $false -Language "en") -match "No data") "missing token bucket should not be presented as zero usage"
@@ -1151,6 +1179,7 @@ function Show-Status {
   $running = Get-RunningOverlayProcess
   $state = Read-CodexState
   $taskInstalled = Test-AutostartEnabled
+  $appServerCandidate = Find-StandaloneCodexBinary
   $latestLog = ""
   if (Test-Path -LiteralPath $LogPath) {
     try {
@@ -1168,6 +1197,7 @@ function Show-Status {
     CodexHome = [System.IO.Path]::GetFullPath($CodexHome)
     CodexStateFile = Test-Path -LiteralPath (Join-Path $CodexHome ".codex-global-state.json")
     PetOverlayOpen = if ($state) { [bool]$state.'electron-avatar-overlay-open' } else { $false }
+    OfficialStats = if ($null -ne $appServerCandidate) { "Available ($($appServerCandidate.Source))" } else { "Local estimate only" }
     LatestLog = $latestLog
   } | Format-List
 }
@@ -1814,7 +1844,7 @@ function Run-Overlay {
   $controlLogRow = New-ControlRow 7 $logLabel "›"
   $controlExitRow = New-ControlRow 8 $exitLabel "" "#FF6B62"
   $versionText = New-Object System.Windows.Controls.TextBlock
-  $versionText.Text = "v1.2.0"; $versionText.Foreground = New-Brush "#65717A"; $versionText.FontSize = 9
+  $versionText.Text = "v1.3.0"; $versionText.Foreground = New-Brush "#65717A"; $versionText.FontSize = 9
   $versionText.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
   $versionText.VerticalAlignment = [System.Windows.VerticalAlignment]::Bottom
   [System.Windows.Controls.Grid]::SetRow($versionText, 9); [void]$controlGrid.Children.Add($versionText)
