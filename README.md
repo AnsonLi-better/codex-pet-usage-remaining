@@ -9,12 +9,12 @@
 </p>
 
 <p align="center">
-  <img src="assets/app-icon-terminal-black.png" width="96" alt="Codex Usage Remaining 的黑底 >_< 终端图标"/>
+  <img src="assets/app-icon-terminal-black.png" width="96" alt="Codex Usage Remaining 的黑底 >_ 终端图标"/>
 </p>
 
 > 给 Codex Desktop 的 `/pet` 宠物实时显示剩余额度，并在 Windows 系统托盘中查看 Token 活动、管理程序。
 
-一个开源的 Windows 桌面伴随工具：鼠标移到 Codex 宠物身上，会弹出跟随宠物的小卡片，实时显示 7 天剩余额度；系统托盘里还有常驻控制面板，可查看每日 Token 趋势、暂停悬浮窗、切换中英文、管理开机自启、查看日志和退出。它**不修改 Codex**，只读取本机 Codex 状态和登录态来查询用量，不会上传任何数据。
+一个开源的 Windows 桌面伴随工具：鼠标移到 Codex 宠物身上，会弹出跟随宠物的小卡片，实时显示 7 天剩余额度；系统托盘里还有常驻控制面板，可查看每日 Token 趋势、暂停悬浮窗、切换中英文、管理开机自启、查看日志和退出。它不修改 Codex，只读取本机 Codex 状态和登录态来查询用量，不会上传任何数据。
 
 > **[⬇️ 下载最新版 Windows 安装包](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest)**
 
@@ -25,18 +25,10 @@
 <p align="center">
   <img src="assets/tray-control-panel-zh.png" width="280" alt="Codex Usage Remaining 中文托盘控制面板"/>
   &nbsp;&nbsp;
-  <img src="assets/tray-control-panel-en.png" width="280" alt="Codex Usage Remaining 英文托盘控制面板"/>
-</p>
-
-<p align="center"><sub>点击通知区域的图标即可打开；支持中文和 English。</sub></p>
-
-<p align="center">
   <img src="assets/tray-token-tooltip-zh.png" width="280" alt="中文：鼠标悬停柱状图显示 UTC 日期、Token 数值和数据来源"/>
-  &nbsp;&nbsp;
-  <img src="assets/tray-token-tooltip-en.png" width="280" alt="English: hovering a daily bar shows its UTC date, token count, and data source"/>
 </p>
 
-<p align="center"><sub>鼠标移到每日柱状图上，可查看 UTC 日期、完整 Token 数值和数据来源。</sub></p>
+<p align="center"><sub>点击通知区域图标打开控制面板；鼠标移到每日柱状图上，可查看 UTC 日期、完整 Token 数值和数据来源。</sub></p>
 
 ## ⬇️ 安装
 
@@ -46,13 +38,13 @@
 2. 双击安装。程序会安装到当前用户目录、立即启动，并默认随 Windows 登录启动，无需管理员权限。
 3. 打开 Codex Desktop，输入 `/pet`，将鼠标移到宠物上；看到剩余额度卡片即表示运行成功。
 
-安装后，Windows 通知区域会出现 `>_<` 图标。如果没有直接看到，请展开任务栏右侧的 `^` 折叠区域。
+安装后，Windows 通知区域会出现 `>_` 图标。如果没有直接看到，请展开任务栏右侧的 `^` 折叠区域。
 
 卸载时，可使用 Windows“设置 → 应用”，或开始菜单中的 **Uninstall Codex Usage Remaining**。
 
 ## 🎛️ 托盘控制面板
 
-点击通知区域的 `>_<` 图标即可打开控制面板：
+点击通知区域的 `>_` 图标即可打开控制面板：
 
 - **Token 活动**：显示今日 Token、本周最近 7 个完整 UTC 日期的柱状趋势和合计；将鼠标移到柱子上可查看日期、完整数值及数据来源。
 - **悬浮窗**：使用滑轨暂停或恢复宠物旁的额度卡片。

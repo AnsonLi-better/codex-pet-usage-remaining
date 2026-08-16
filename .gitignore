@@ -31,3 +31,5 @@ design-qa.md
 prototypes/
 assets/*-source.png
 assets/app-icon-terminal*
+!assets/app-icon-terminal-black.png
+!assets/app-icon-terminal-black.ico

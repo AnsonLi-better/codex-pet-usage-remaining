@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/app-icon-terminal-black.png" width="96" alt="Codex Usage Remaining black terminal icon with a >_< face"/>
+  <img src="assets/app-icon-terminal-black.png" width="96" alt="Codex Usage Remaining black terminal icon with a >_ mark"/>
 </p>
 
 > Show remaining usage next to Codex Desktop `/pet`, and view token activity and manage the app from the Windows system tray.
@@ -25,18 +25,10 @@ An open-source Windows companion app: hover the Codex pet to see a real-time rem
 <p align="center">
   <img src="assets/tray-control-panel-en.png" width="280" alt="Codex Usage Remaining English tray control panel"/>
   &nbsp;&nbsp;
-  <img src="assets/tray-control-panel-zh.png" width="280" alt="Codex Usage Remaining Chinese tray control panel"/>
-</p>
-
-<p align="center"><sub>Click the notification-area icon to open it; English and Chinese are both supported.</sub></p>
-
-<p align="center">
   <img src="assets/tray-token-tooltip-en.png" width="280" alt="A daily bar tooltip showing the UTC date, full token count, and data source"/>
-  &nbsp;&nbsp;
-  <img src="assets/tray-token-tooltip-zh.png" width="280" alt="中文：鼠标悬停柱状图显示 UTC 日期、Token 数值和数据来源"/>
 </p>
 
-<p align="center"><sub>Hover a daily bar to see its UTC date, full token count, and data source.</sub></p>
+<p align="center"><sub>Click the notification-area icon to open the panel; hover a daily bar to see its UTC date, full token count, and data source.</sub></p>
 
 ## ⬇️ Install
 
@@ -46,13 +38,13 @@ The installer is the recommended option. You do not need to open the project fol
 2. Run the installer. It installs for the current user, launches immediately, and starts at Windows sign-in by default. Administrator access is not required.
 3. Open Codex Desktop, enter `/pet`, and hover the pet. The remaining-usage card confirms that the app is working.
 
-After installation, a `>_<` icon appears in the Windows notification area. If it is not visible, expand the `^` overflow area on the taskbar.
+After installation, a `>_` icon appears in the Windows notification area. If it is not visible, expand the `^` overflow area on the taskbar.
 
 To uninstall, use Windows **Settings → Apps** or **Uninstall Codex Usage Remaining** in the Start menu.
 
 ## 🎛️ Tray control panel
 
-Click the `>_<` notification-area icon to open the control panel:
+Click the `>_` notification-area icon to open the control panel:
 
 - **Token activity**: today's tokens, a bar trend for the latest seven complete UTC dates, and their total. Hover a bar to see its date, full value, and data source.
 - **Overlay**: pause or resume the usage card with a slide switch.
