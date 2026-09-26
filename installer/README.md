@@ -7,6 +7,11 @@
 .\Build-Installer.ps1
 ```
 
-The installer is written to `dist/`.
+The build writes two installers to `dist/`:
+
+- `CodexUsageRemaining-Setup-<version>.exe`: complete installer with the pinned official statistics component bundled; installation does not need internet access.
+- `CodexUsageRemaining-WebSetup-<version>.exe`: smaller installer that downloads and verifies that component during installation.
+
+The build script verifies the component archive's SHA-256 digest before compiling. `dist/` and the downloaded `vendor/` archive are ignored by Git. Attach the two installers separately to a GitHub release after review; they are not part of the source pull request.
 
 Setup is per-user and does not require administrator access. It installs to `%LOCALAPPDATA%\Programs\CodexUsageRemaining`, adds Start-menu entries, enables login startup, starts the tray app, and removes startup integration during uninstall.

@@ -1,4 +1,4 @@
-# Codex /pet Remaining Usage Companion Overlay — Agent Setup Guide
+# Codex Usage Remaining — Agent Setup Guide
 
 > **For AI agents.** This document is a setup guide meant to be read and executed by an AI coding agent (Codex CLI, Claude Code, etc.) on the user's Windows machine. If you are such an agent, follow the steps below **in order**, run the commands, and keep the user informed of what you are doing at each step. If you are a human reading this, just hand the URL of this document to your agent.
 
@@ -8,18 +8,26 @@ Download, verify, install, and launch the **Codex /pet usage companion overlay**
 
 ## What this tool is
 
-- When the user hovers the mouse over the Codex Desktop `/pet` mascot, a small 112×136 card appears showing real-time remaining usage: a color-coded progress ring + the percentage inside the ring + a countdown to the next refresh.
-- Pure PowerShell 5.1 + WPF; portable, no installer, no third-party runtime.
+- Hovering over the Codex Desktop `/pet` mascot shows a 112×136 floating card with the selected 5-hour or 7-day remaining quota. The tray panel shows both quota windows as progress bars; clicking one selects what the floating card displays, and the selection persists.
+- The recommended installation uses a Windows installer. The app uses Windows PowerShell 5.1 + WPF, with an official Codex app-server component bundled in the complete installer or downloaded by WebSetup.
 - Ring color by remaining usage: **≥60% green, 30–59% amber, <30% red**. The UI is bilingual (Chinese ⇄ English, toggled with `Ctrl+Alt+Shift+L`).
-- Safe: it only reads local files under `%USERPROFILE%\.codex\` (state, login, logs). It sends nothing to any third party.
+- It reads Codex state, login, and session data under `%USERPROFILE%\.codex\`. The login token is used to query OpenAI's usage endpoint; prompts, screenshots, and repository contents are not uploaded.
 
 ## Prerequisites — check before continuing
 
 1. Windows 10 or 11 with PowerShell 5.1+ (built in).
 2. Codex Desktop installed and signed in, and `/pet` is usable.
-3. Optional: Python (fallback for reading local logs when the live usage API is down).
+3. No separate Python, Node.js, npm, or Codex CLI installation is required for the released installers.
 
-## Step 1 — Download
+## Recommended: install from a release
+
+Open [Releases](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest) and run `CodexUsageRemaining-Setup-*.exe`. This complete installer includes the official statistics component and needs no network during installation. `CodexUsageRemaining-WebSetup-*.exe` is smaller but downloads the component during installation. The installer configures and starts the app, including Windows login startup. Open the tray panel to switch the floating card between 5 hours and 7 days.
+
+## Alternative: run from source
+
+Only use the following steps when the user wants a source installation or needs to debug the app. Source startup depends on the current folder path; moving the folder later requires running `Install.bat` again.
+
+### Step 1 — Download
 
 ```bash
 git clone https://github.com/AnsonLi-better/codex-pet-usage-remaining
@@ -28,7 +36,7 @@ cd codex-pet-usage-remaining
 
 If git is not installed, download the repository ZIP from the GitHub page and extract it, then `cd` into the extracted folder.
 
-## Step 2 — Verify the script
+### Step 2 — Verify the script
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 SelfTest
@@ -36,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 S
 
 **The output must be `SelfTest OK`.** If it is not, stop and report the error to the user (usually an outdated PowerShell or a broken download). Do **not** continue past this step.
 
-## Step 3 — Install and start the overlay
+### Step 3 — Install and start the overlay
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 Start
@@ -44,7 +52,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 S
 
 Tell the user: *"The usage overlay is now running in the background."*
 
-## Step 4 — Automatic startup at login (ask the user first)
+### Step 4 — Automatic startup at login (ask the user first)
 
 Ask the user: *"Want the overlay to start automatically when you log in?"* If yes:
 
@@ -52,14 +60,15 @@ Ask the user: *"Want the overlay to start automatically when you log in?"* If ye
 powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.ps1 InstallTask
 ```
 
-Then confirm that the `Codex Pet Usage Overlay` task exists. For ordinary users, double-click `Install.bat`; it performs both Step 3 and Step 4.
+Then confirm that startup integration is enabled with the `Status` command. For source users, double-click `Install.bat`; it performs both Step 3 and Step 4.
 
-## Step 5 — Guide the user through first use
+### Step 5 — Guide the user through first use
 
 1. Open Codex Desktop and type `/pet` so the pet appears on screen.
 2. Hover the mouse over the pet — the overlay card should appear for about 10 seconds.
 3. Drag the pet — the overlay should follow it.
 4. Press `Ctrl+Alt+Shift+L` — the UI should switch between Chinese and English.
+5. Click the `>_` tray icon. The panel shows both the 5-hour and 7-day quotas. Click either progress-bar column to choose the floating card's quota.
 
 ## Command reference (for the user)
 
@@ -78,7 +87,7 @@ Manual example: `powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetU
 ## Troubleshooting the user may hit
 
 - **No overlay card**: `/pet` must be open, and the cursor must be over the pet. The card only shows while hovering (about 10 seconds).
-- **Shows `--%` / `--`**: the live usage API is temporarily unavailable; the overlay degrades gracefully and retries automatically. Not a bug.
+- **Shows `--%` / `--`**: the selected quota window may be missing from the live response. The other quota is not substituted; check the tray panel and log.
 - **Overlay doesn't follow the pet**: run `FindPet` and read its output to diagnose pet-window detection.
 
 ## Safety rules

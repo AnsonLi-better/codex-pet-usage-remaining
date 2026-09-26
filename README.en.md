@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/license-MIT-43E6A8" alt="MIT License"/>
   <img src="https://img.shields.io/badge/platform-Windows-0078d6" alt="Windows"/>
   <img src="https://img.shields.io/badge/powershell-5.1%2B-5391FE" alt="PowerShell 5.1+"/>
-  <img src="https://img.shields.io/badge/release-v1.3.0-2ea44f" alt="v1.3.0"/>
+  <img src="https://img.shields.io/badge/release-v1.4.0-2ea44f" alt="v1.4.0"/>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 
 > Show remaining usage next to Codex Desktop `/pet`, and view token activity and manage the app from the Windows system tray.
 
-An open-source Windows companion app: hover the Codex pet to see a real-time remaining-usage card that follows it, and use the always-available tray control panel for daily token trends, pausing the overlay, switching language, managing autostart, viewing logs, and exiting. It **does not modify Codex** — it only reads your local Codex state and login to query usage, and uploads nothing.
+An open-source Windows companion app: hover the Codex pet to see a remaining-usage card for your selected 5-hour or 7-day window. The tray panel shows both quota windows and daily token trends, and lets you pause the overlay, switch language, manage autostart, view logs, and exit. It **does not modify Codex** — it only reads your local Codex state and login to query usage, and uploads nothing.
 
 > **[⬇️ Download the latest Windows installer](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest)**
 
@@ -23,12 +23,12 @@ An open-source Windows companion app: hover the Codex pet to see a real-time rem
 ## 🖼️ Interface preview
 
 <p align="center">
-  <img src="assets/tray-control-panel-en.png" width="280" alt="Codex Usage Remaining English tray control panel"/>
+  <img src="assets/tray-control-panel-v1.4-en.svg" width="280" alt="Codex Usage Remaining 1.4 English tray panel illustration"/>
   &nbsp;&nbsp;
-  <img src="assets/tray-token-tooltip-en.png" width="280" alt="A daily bar tooltip showing the UTC date, full token count, and data source"/>
+  <img src="assets/tray-token-tooltip-v1.4-en.svg" width="280" alt="1.4 English panel illustration showing the daily bar tooltip"/>
 </p>
 
-<p align="center"><sub>Click the notification-area icon to open the panel; hover a daily bar to see its UTC date, full token count, and data source.</sub></p>
+<p align="center"><sub>1.4.0 interface illustration; values are examples. Click the notification-area icon to open the panel; hover a daily bar to see its UTC date, full token count, and data source.</sub></p>
 
 ## ⬇️ Install
 
@@ -50,6 +50,7 @@ To uninstall, use Windows **Settings → Apps** or **Uninstall Codex Usage Remai
 
 Click the `>_` notification-area icon to open the control panel:
 
+- **Quota progress bars**: show the 5-hour and 7-day remaining percentages and their reset times side by side. Click either bar to choose what the pet overlay displays; your choice is saved.
 - **Token activity**: today's tokens, a bar trend for the latest seven complete UTC dates, and their total. Hover a bar to see its date, full value, and data source.
 - **Overlay**: pause or resume the usage card with a slide switch.
 - **Start with Windows**: choose whether the app runs after signing in.
@@ -63,7 +64,7 @@ After exiting, reopen **Codex Usage Remaining** from the Start menu; there is no
 
 - 🖱️ **Hover to show**: appears when the cursor enters the pet area and hides 10 seconds after leaving.
 - 🎯 **Live pet tracking**: the usage card follows when `/pet` is dragged.
-- 💠 **Remaining-usage ring**: shows the 7-day remaining percentage and update timing.
+- 💠 **Remaining-usage ring**: shows the selected 5-hour or 7-day quota and reset countdown.
 - 📊 **Token activity panel**: incrementally estimates today from local Codex session logs; the installer automatically configures a private Codex app-server for official daily totals.
 - 🎨 **Color tiers**: green at ≥60%, amber at 30–59%, and red below 30%.
 - 🎛️ **Tray management**: pause, resume, change language, manage autostart, view logs, and exit without opening a folder.
@@ -75,6 +76,7 @@ After exiting, reopen **Codex Usage Remaining** from the Start menu; there is no
   <img src="assets/preview-amber.png" width="122" alt="Medium remaining usage in amber" title="30-59% amber"/>
   <img src="assets/preview-red.png" width="122" alt="Low remaining usage in red" title="<30% red"/>
   <img src="assets/preview-en.png" width="122" alt="English overlay" title="English / Weekly"/>
+  <img src="assets/overlay-five-hour-v1.4-en.svg" width="112" alt="1.4.0 five-hour floating quota card illustration" title="5-hour window"/>
 </p>
 
 ## 📦 Requirements
@@ -109,6 +111,7 @@ Runtime state is stored in:
 %LOCALAPPDATA%\CodexPetUsageOverlay\overlay.pid
 %LOCALAPPDATA%\CodexPetUsageOverlay\overlay.log
 %LOCALAPPDATA%\CodexPetUsageOverlay\lang.txt
+%LOCALAPPDATA%\CodexPetUsageOverlay\overlay-window.txt
 %LOCALAPPDATA%\CodexPetUsageOverlay\token-usage-state.json
 ```
 
@@ -185,7 +188,7 @@ Common options:
 
 - **Hover detection**: periodically checks the cursor and shows the card when it enters the pet area.
 - **Window tracking**: enumerates Codex windows through Win32 and identifies the pet window, falling back to coordinates in local Codex state.
-- **Usage retrieval**: uses the local Codex login for the 7-day remaining quota, incrementally reads session `token_count` events for today's estimate, and uses a private app-server for official daily totals when available.
+- **Usage retrieval**: uses the local Codex login for 5-hour and 7-day remaining quotas, identified by window duration; incrementally reads session `token_count` events for today's estimate, and uses a private app-server for official daily totals when available.
 - **Rendering**: uses Windows PowerShell 5.1, WPF, and Windows Forms for the overlay, tray icon, and control panel.
 
 ## 📁 Repository layout
@@ -207,7 +210,7 @@ AGENT_SETUP.md                 agent setup instructions
 
 - `wham/usage` is not a stable public API; fields and availability may change.
 - Today's token value is a local estimate from this computer and does not include complete account usage from other devices.
-- WebSetup downloads the official statistics component during first installation; the complete installer includes it. Today's estimate and the 7-day remaining quota still work if the download fails.
+- WebSetup downloads the official statistics component during first installation; the complete installer includes it. Today's estimate and available 5-hour and 7-day remaining quotas still work if the download fails.
 - Pet-window detection uses size and position heuristics and may select the wrong window in edge cases.
 - The tray and WPF control panel still require manual UI verification in a real Windows desktop session.
 

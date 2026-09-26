@@ -1,5 +1,5 @@
 #define MyAppName "Codex Usage Remaining"
-#define MyAppVersion "1.3.0"
+#define MyAppVersion "1.4.0"
 #define MyAppPublisher "AnsonLi-better"
 #define MyAppURL "https://github.com/AnsonLi-better/codex-pet-usage-remaining"
 #define MyAppScript "CodexPetUsageOverlay.ps1"

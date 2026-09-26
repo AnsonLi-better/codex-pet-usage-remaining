@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/license-MIT-43E6A8" alt="MIT License"/>
   <img src="https://img.shields.io/badge/platform-Windows-0078d6" alt="Windows"/>
   <img src="https://img.shields.io/badge/powershell-5.1%2B-5391FE" alt="PowerShell 5.1+"/>
-  <img src="https://img.shields.io/badge/release-v1.3.0-2ea44f" alt="v1.3.0"/>
+  <img src="https://img.shields.io/badge/release-v1.4.0-2ea44f" alt="v1.4.0"/>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 
 > 给 Codex Desktop 的 `/pet` 宠物实时显示剩余额度，并在 Windows 系统托盘中查看 Token 活动、管理程序。
 
-一个开源的 Windows 桌面伴随工具：鼠标移到 Codex 宠物身上，会弹出跟随宠物的小卡片，实时显示 7 天剩余额度；系统托盘里还有常驻控制面板，可查看每日 Token 趋势、暂停悬浮窗、切换中英文、管理开机自启、查看日志和退出。它不修改 Codex，只读取本机 Codex 状态和登录态来查询用量，不会上传任何数据。
+一个开源的 Windows 桌面伴随工具：鼠标移到 Codex 宠物身上，会弹出跟随宠物的小卡片，显示所选的 5 小时或 7 天剩余额度；系统托盘里还有常驻控制面板，可同时查看两个额度窗口与每日 Token 趋势、暂停悬浮窗、切换中英文、管理开机自启、查看日志和退出。它不修改 Codex，只读取本机 Codex 状态和登录态来查询用量，不会上传任何数据。
 
 > **[⬇️ 下载最新版 Windows 安装包](https://github.com/AnsonLi-better/codex-pet-usage-remaining/releases/latest)**
 
@@ -23,12 +23,12 @@
 ## 🖼️ 界面预览
 
 <p align="center">
-  <img src="assets/tray-control-panel-zh.png" width="280" alt="Codex Usage Remaining 中文托盘控制面板"/>
+  <img src="assets/tray-control-panel-v1.4-zh.svg" width="280" alt="Codex Usage Remaining 1.4 中文托盘控制面板示意图"/>
   &nbsp;&nbsp;
-  <img src="assets/tray-token-tooltip-zh.png" width="280" alt="中文：鼠标悬停柱状图显示 UTC 日期、Token 数值和数据来源"/>
+  <img src="assets/tray-token-tooltip-v1.4-zh.svg" width="280" alt="1.4 中文界面示意图：鼠标悬停柱状图显示 UTC 日期、Token 数值和数据来源"/>
 </p>
 
-<p align="center"><sub>点击通知区域图标打开控制面板；鼠标移到每日柱状图上，可查看 UTC 日期、完整 Token 数值和数据来源。</sub></p>
+<p align="center"><sub>1.4.0 界面示意图，数值仅作演示。点击通知区域图标打开控制面板；鼠标移到每日柱状图上，可查看 UTC 日期、完整 Token 数值和数据来源。</sub></p>
 
 ## ⬇️ 安装
 
@@ -50,6 +50,7 @@
 
 点击通知区域的 `>_` 图标即可打开控制面板：
 
+- **额度进度条**：并排显示 5 小时与 7 天的剩余百分比及具体重置时间；点击其中一栏，切换宠物旁悬浮窗显示的额度。选择会保存。
 - **Token 活动**：显示今日 Token、本周最近 7 个完整 UTC 日期的柱状趋势和合计；将鼠标移到柱子上可查看日期、完整数值及数据来源。
 - **悬浮窗**：使用滑轨暂停或恢复宠物旁的额度卡片。
 - **开机自动启动**：控制登录 Windows 后是否自动运行。
@@ -63,7 +64,7 @@
 
 - 🖱️ **宠物悬停显示**：鼠标进入宠物区域时显示，离开后 10 秒自动隐藏。
 - 🎯 **实时跟随**：拖动 `/pet` 宠物时，额度卡片跟随移动。
-- 💠 **剩余额度光环**：显示 7 天窗口剩余百分比和更新时间。
+- 💠 **剩余额度光环**：悬浮窗一次显示所选的 5 小时或 7 天额度及重置倒计时。
 - 📊 **Token 活动面板**：今日数据使用本机 Codex 会话日志增量估算；安装器自动配置私有 Codex app-server，用于补充官方每日数据。
 - 🎨 **状态变色**：剩余 ≥60% 为绿色、30–59% 为琥珀色、<30% 为红色。
 - 🎛️ **托盘管理**：无需进入文件夹，即可暂停、恢复、切换语言、管理自启和退出。
@@ -75,6 +76,7 @@
   <img src="assets/preview-amber.png" width="122" alt="中等剩余额度（琥珀色）" title="30–59% 琥珀色"/>
   <img src="assets/preview-red.png" width="122" alt="低剩余额度（红色）" title="<30% 红色"/>
   <img src="assets/preview-en.png" width="122" alt="英文悬浮窗" title="English / Weekly"/>
+  <img src="assets/overlay-five-hour-v1.4-zh.svg" width="112" alt="1.4.0 五小时额度悬浮窗示意图" title="5 小时窗口"/>
 </p>
 
 ## 📦 系统要求
@@ -109,6 +111,7 @@ https://chatgpt.com/backend-api/wham/usage
 %LOCALAPPDATA%\CodexPetUsageOverlay\overlay.pid
 %LOCALAPPDATA%\CodexPetUsageOverlay\overlay.log
 %LOCALAPPDATA%\CodexPetUsageOverlay\lang.txt
+%LOCALAPPDATA%\CodexPetUsageOverlay\overlay-window.txt
 %LOCALAPPDATA%\CodexPetUsageOverlay\token-usage-state.json
 ```
 
@@ -185,7 +188,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\CodexPetUsageOverlay.p
 
 - **悬停检测**：周期性读取鼠标位置，进入宠物区域后显示额度卡片。
 - **窗口跟踪**：通过 Win32 枚举 Codex 窗口并识别宠物窗口，找不到时回退到 Codex 本地状态中的坐标。
-- **用量获取**：使用本机 Codex 登录态查询 7 天剩余额度；增量读取会话中的 `token_count` 估算今日 Token，并在可用时通过私有 app-server 获取官方每日统计。
+- **用量获取**：使用本机 Codex 登录态查询 5 小时与 7 天剩余额度，并按窗口时长识别；增量读取会话中的 `token_count` 估算今日 Token，并在可用时通过私有 app-server 获取官方每日统计。
 - **界面渲染**：使用 Windows PowerShell 5.1、WPF 和 Windows Forms 构建悬浮窗、托盘和控制面板。
 
 ## 📁 项目结构
@@ -207,7 +210,7 @@ AGENT_SETUP.md                 Agent 安装说明
 
 - `wham/usage` 不是公开稳定 API，字段和可用性未来可能变化。
 - 今日 Token 是当前电脑上的本地估算，不代表账户在其他设备上的完整用量。
-- 在线安装版首次安装时需要联网下载官方统计组件；完整安装版已内置组件。下载失败时仍可显示今日估算和 7 天剩余额度。
+- 在线安装版首次安装时需要联网下载官方统计组件；完整安装版已内置组件。下载失败时仍可显示今日估算和可用的 5 小时、7 天剩余额度。
 - 宠物窗口识别使用尺寸和位置启发式，极端情况下可能选错窗口。
 - 托盘和 WPF 控制面板目前仍需要在真实 Windows 桌面环境中进行手动 UI 验证。
 
