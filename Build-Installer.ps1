@@ -38,20 +38,20 @@ if (Test-Path -LiteralPath $componentArchive) {
   $archiveValid = (Get-FileHash -LiteralPath $componentArchive -Algorithm SHA256).Hash.ToLowerInvariant() -eq $componentSha256
 }
 if (-not $archiveValid) {
-  Write-Output "Downloading pinned official statistics component for the Full installer..."
+  Write-Output "Downloading pinned official statistics component for the complete installer..."
   [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
   $client = New-Object System.Net.WebClient
   try { $client.DownloadFile($componentUrl, $componentArchive) } finally { $client.Dispose() }
   if ((Get-FileHash -LiteralPath $componentArchive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $componentSha256) {
-    throw "Downloaded Full-installer component failed SHA-256 verification."
+    throw "Downloaded complete-installer component failed SHA-256 verification."
   }
 }
 
 & $InnoSetupCompiler $definition
-if ($LASTEXITCODE -ne 0) { throw "Lite installer compilation failed with exit code $LASTEXITCODE." }
+if ($LASTEXITCODE -ne 0) { throw "Web installer compilation failed with exit code $LASTEXITCODE." }
 
 & $InnoSetupCompiler "/DFullBuild=1" $definition
-if ($LASTEXITCODE -ne 0) { throw "Full installer compilation failed with exit code $LASTEXITCODE." }
+if ($LASTEXITCODE -ne 0) { throw "Complete installer compilation failed with exit code $LASTEXITCODE." }
 
 @(
   (Join-Path $projectDir "dist\CodexUsageRemaining-Setup-$appVersion.exe"),

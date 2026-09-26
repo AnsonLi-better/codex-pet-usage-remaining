@@ -19,6 +19,7 @@ $AppDir = Join-Path $env:LOCALAPPDATA $AppName
 $PidPath = Join-Path $AppDir "overlay.pid"
 $LogPath = Join-Path $AppDir "overlay.log"
 $TokenUsageStatePath = Join-Path $AppDir "token-usage-state.json"
+$OverlayWindowPath = Join-Path $AppDir "overlay-window.txt"
 $HoverShowSeconds = 10
 $DisplayName = "Codex Usage Remaining"
 $TaskName = $DisplayName
@@ -522,7 +523,36 @@ function Get-BucketWindowSeconds {
   if ($null -eq $Bucket) { return $null }
   if ($null -ne $Bucket.limit_window_seconds) { return [double]$Bucket.limit_window_seconds }
   if ($null -ne $Bucket.window_seconds) { return [double]$Bucket.window_seconds }
+  if ($null -ne $Bucket.windowDurationMins) { return [double]$Bucket.windowDurationMins * 60 }
   return $null
+}
+
+function Get-WindowUsage {
+  param($Usage, [int]$Seconds)
+  if ($null -eq $Usage -or -not $Usage.Available) { return $null }
+  foreach ($prefix in @("Primary", "Secondary")) {
+    $duration = $Usage.("${prefix}WindowSeconds")
+    if ($null -eq $duration -or [Math]::Abs([double]$duration - $Seconds) -gt 60) { continue }
+    $remaining = $Usage.("${prefix}Remaining")
+    if ($null -ne $remaining) {
+      return [PSCustomObject]@{ Remaining = [double]$remaining; ResetAt = $Usage.("${prefix}ResetAt") }
+    }
+  }
+  return $null
+}
+
+function Get-SavedOverlayWindow {
+  try {
+    $saved = (Get-Content -LiteralPath $OverlayWindowPath -Raw -ErrorAction Stop).Trim()
+    if ($saved -eq "5h" -or $saved -eq "7d") { return $saved }
+  } catch {}
+  return "7d"
+}
+
+function Set-SavedOverlayWindow {
+  param([ValidateSet("5h", "7d")][string]$Window)
+  Ensure-AppDir
+  Set-Content -LiteralPath $OverlayWindowPath -Value $Window -Encoding ASCII
 }
 
 function Convert-ResetAt {
@@ -826,7 +856,7 @@ function Start-UsageAppServer {
     $script:UsageAppServerProcess = $process
     $script:UsageAppServerRequestId = 0
     $null = Invoke-UsageAppServerRequest -Method "initialize" -Params @{
-      clientInfo = @{ name = "codex_usage_remaining"; title = $DisplayName; version = "1.3.0" }
+      clientInfo = @{ name = "codex_usage_remaining"; title = $DisplayName; version = "1.4.0" }
       capabilities = @{ experimentalApi = $true }
     }
     Send-UsageAppServerMessage -Message @{ method = "initialized"; params = @{} }
@@ -1073,6 +1103,12 @@ function Invoke-SelfTest {
   $usage = Convert-UsagePayload -Payload $payload -Source "test"
   Assert-True ([Math]::Abs($usage.PrimaryRemaining - 63.0) -lt 0.01) "used_percent should become remaining percent"
   Assert-True ([Math]::Abs($usage.SecondaryRemaining - 48.0) -lt 0.01) "secondary used_percent should become remaining percent"
+  Assert-True ([Math]::Abs((Get-WindowUsage -Usage $usage -Seconds 18000).Remaining - 63.0) -lt 0.01) "five-hour window should be identified by duration"
+  Assert-True ([Math]::Abs((Get-WindowUsage -Usage $usage -Seconds 604800).Remaining - 48.0) -lt 0.01) "weekly window should be identified by duration"
+  Assert-True ($null -eq (Get-WindowUsage -Usage $usage -Seconds 3600)) "unknown window should stay unavailable"
+  $swapped = [PSCustomObject]@{ Available = $true; PrimaryWindowSeconds = 604800; PrimaryRemaining = 48; PrimaryResetAt = $null; SecondaryWindowSeconds = 18000; SecondaryRemaining = 63; SecondaryResetAt = $null }
+  Assert-True ([Math]::Abs((Get-WindowUsage -Usage $swapped -Seconds 18000).Remaining - 63.0) -lt 0.01) "window order should not affect five-hour quota"
+  Assert-True ((Get-BucketWindowSeconds ([PSCustomObject]@{ windowDurationMins = 300 })) -eq 18000) "app-server window duration should be converted to seconds"
 
   $payload2 = [PSCustomObject]@{
     rate_limits = [PSCustomObject]@{
@@ -1265,6 +1301,7 @@ function Run-Overlay {
   $script:CursorWasInPet = $false
   $script:OverlayWasVisible = $false
   $script:OverlayPaused = $false
+  $script:OverlayWindow = Get-SavedOverlayWindow
   $script:AutostartEnabled = Test-AutostartEnabled
   $script:LastTextUpdateAt = [datetime]::MinValue
   if ($script:LanguageWasSet) {
@@ -1347,15 +1384,15 @@ function Run-Overlay {
   foreach ($text in @($modeTag, $percentText, $timeText)) { [void]$canvas.Children.Add($text) }
 
   function Update-Text {
-    $modeTag.Text = if ($script:Language -eq "en") { "Weekly" } else { U "7\u5929\u7a97\u53e3" }
-    if (-not $script:UsageState.Available) {
+    $modeTag.Text = if ($script:OverlayWindow -eq "5h") { if ($script:Language -eq "en") { "5 hours" } else { U "5 \u5c0f\u65f6" } } else { if ($script:Language -eq "en") { "Weekly" } else { U "7\u5929\u7a97\u53e3" } }
+    $selected = Get-WindowUsage -Usage $script:UsageState -Seconds $(if ($script:OverlayWindow -eq "5h") { 18000 } else { 604800 })
+    if ($null -eq $selected) {
       $percentText.Text = "--%"
       $timeText.Text = "--"
       return
     }
-    $remaining = if ($null -ne $script:UsageState.SecondaryRemaining) { $script:UsageState.SecondaryRemaining } elseif ($null -ne $script:UsageState.PrimaryRemaining) { $script:UsageState.PrimaryRemaining } else { 0 }
-    $resetAt = if ($null -ne $script:UsageState.SecondaryResetAt) { $script:UsageState.SecondaryResetAt } else { $script:UsageState.PrimaryResetAt }
-    $percentText.Text = ("{0:N0}%" -f $remaining)
+    $resetAt = $selected.ResetAt
+    $percentText.Text = ("{0:N0}%" -f $selected.Remaining)
     if ($null -ne $resetAt) {
       if ($script:Language -eq "en") {
         $timeText.Text = "in " + (Format-Duration -ResetAt $resetAt -Language "en")
@@ -1442,9 +1479,8 @@ function Run-Overlay {
     $cx = 56.0
     $cy = 64.0
     $outerRadius = 32.0
-    $secondaryRemaining = if ($null -ne $script:UsageState.SecondaryRemaining) { $script:UsageState.SecondaryRemaining } else { $null }
-    $primaryRemaining = if ($null -ne $script:UsageState.PrimaryRemaining) { $script:UsageState.PrimaryRemaining } else { $null }
-    $remaining = if ($null -ne $secondaryRemaining) { $secondaryRemaining } elseif ($null -ne $primaryRemaining) { $primaryRemaining } else { 0 }
+    $selected = Get-WindowUsage -Usage $script:UsageState -Seconds $(if ($script:OverlayWindow -eq "5h") { 18000 } else { 604800 })
+    $remaining = if ($null -ne $selected) { $selected.Remaining } else { $null }
     $outerArc.Stroke = New-Brush (Get-UsageColor $remaining) 240
     Set-EllipseBounds -Ellipse $outerTrack -CenterX $cx -CenterY $cy -Radius $outerRadius
     Set-ArcPath -Path $outerArc -CenterX $cx -CenterY $cy -Radius $outerRadius -Percent $remaining
@@ -1639,29 +1675,59 @@ function Run-Overlay {
   [void]$controlGrid.Children.Add($usageCard)
   $usageCanvas = New-Object System.Windows.Controls.Canvas
   $usageCard.Child = $usageCanvas
-  $controlLabel = New-Object System.Windows.Controls.TextBlock
-  $controlLabel.Text = if ($script:Language -eq "en") { "7-day remaining" } else { U "7 \u5929\u5269\u4f59" }
-  $controlLabel.Foreground = New-Brush "#98A4AC"
-  $controlLabel.FontSize = 12
-  [System.Windows.Controls.Canvas]::SetLeft($controlLabel, 16); [System.Windows.Controls.Canvas]::SetTop($controlLabel, 11)
-  [void]$usageCanvas.Children.Add($controlLabel)
-  $controlPercent = New-Object System.Windows.Controls.TextBlock
-  $controlPercent.Text = "--%"
-  $controlPercent.Foreground = New-Brush "#F5F2E8"
-  $controlPercent.FontSize = 34
-  $controlPercent.FontWeight = [System.Windows.FontWeights]::SemiBold
-  [System.Windows.Controls.Canvas]::SetLeft($controlPercent, 16); [System.Windows.Controls.Canvas]::SetTop($controlPercent, 31)
-  [void]$usageCanvas.Children.Add($controlPercent)
-  $controlTrack = New-Object System.Windows.Shapes.Ellipse
-  $controlTrack.Stroke = New-Brush "#FFFFFF" 28
-  $controlTrack.StrokeThickness = 6
-  $controlArc = New-Object System.Windows.Shapes.Path
-  $controlArc.Stroke = New-Brush "#43E6A8"
-  $controlArc.StrokeThickness = 6
-  $controlArc.StrokeStartLineCap = [System.Windows.Media.PenLineCap]::Round
-  $controlArc.StrokeEndLineCap = [System.Windows.Media.PenLineCap]::Round
-  foreach ($shape in @($controlTrack, $controlArc)) { [void]$usageCanvas.Children.Add($shape) }
-  Set-EllipseBounds -Ellipse $controlTrack -CenterX 270 -CenterY 42 -Radius 28
+  $usageViews = @{}
+  foreach ($entry in @(@("5h", 16), @("7d", 166))) {
+    $key = [string]$entry[0]
+    $left = [double]$entry[1]
+    $label = New-Object System.Windows.Controls.TextBlock
+    $label.FontSize = 11
+    [System.Windows.Controls.Canvas]::SetLeft($label, $left); [System.Windows.Controls.Canvas]::SetTop($label, 4)
+    [void]$usageCanvas.Children.Add($label)
+    $percent = New-Object System.Windows.Controls.TextBlock
+    $percent.Text = "--%"; $percent.Foreground = New-Brush "#F5F2E8"
+    $percent.FontSize = 24; $percent.FontWeight = [System.Windows.FontWeights]::SemiBold
+    [System.Windows.Controls.Canvas]::SetLeft($percent, $left); [System.Windows.Controls.Canvas]::SetTop($percent, 18)
+    [void]$usageCanvas.Children.Add($percent)
+    $track = New-Object System.Windows.Controls.Border
+    $track.Width = 126; $track.Height = 5; $track.CornerRadius = New-Object System.Windows.CornerRadius 3
+    $track.Background = New-Brush "#FFFFFF" 26
+    [System.Windows.Controls.Canvas]::SetLeft($track, $left); [System.Windows.Controls.Canvas]::SetTop($track, 53)
+    [void]$usageCanvas.Children.Add($track)
+    $fill = New-Object System.Windows.Controls.Border
+    $fill.Width = 0; $fill.Height = 5; $fill.CornerRadius = New-Object System.Windows.CornerRadius 3
+    [System.Windows.Controls.Canvas]::SetLeft($fill, $left); [System.Windows.Controls.Canvas]::SetTop($fill, 53)
+    [void]$usageCanvas.Children.Add($fill)
+    $reset = New-Object System.Windows.Controls.TextBlock
+    $reset.Foreground = New-Brush "#78858E"; $reset.FontSize = 10
+    [System.Windows.Controls.Canvas]::SetLeft($reset, $left); [System.Windows.Controls.Canvas]::SetTop($reset, 62)
+    [void]$usageCanvas.Children.Add($reset)
+    $usageViews[$key] = [PSCustomObject]@{ Label = $label; Percent = $percent; Fill = $fill; Reset = $reset }
+  }
+  $divider = New-Object System.Windows.Controls.Border
+  $divider.Background = New-Brush "#FFFFFF" 28; $divider.Width = 1; $divider.Height = 60
+  [System.Windows.Controls.Canvas]::SetLeft($divider, 155); [System.Windows.Controls.Canvas]::SetTop($divider, 10)
+  [void]$usageCanvas.Children.Add($divider)
+  $usageChoices = @{}
+  foreach ($entry in @(@("5h", 10), @("7d", 160))) {
+    $choice = New-Object System.Windows.Controls.Border
+    $choice.Width = 145; $choice.Height = 77
+    $choice.Background = [System.Windows.Media.Brushes]::Transparent
+    $choice.Cursor = [System.Windows.Input.Cursors]::Hand
+    $choice.Tag = [string]$entry[0]
+    $choice.ToolTip = if ($script:Language -eq "en") { "Show this quota in the pet overlay" } else { U "\u5728\u5ba0\u7269\u65c1\u7684\u60ac\u6d6e\u7a97\u663e\u793a\u6b64\u989d\u5ea6" }
+    $usageChoices[[string]$entry[0]] = $choice
+    [System.Windows.Controls.Canvas]::SetLeft($choice, [double]$entry[1])
+    [void]$usageCanvas.Children.Add($choice)
+    $choice.Add_MouseLeftButtonUp({
+      param($sender, $eventArgs)
+      $script:OverlayWindow = [string]$sender.Tag
+      Set-SavedOverlayWindow -Window $script:OverlayWindow
+      Update-Text
+      Update-Overlay
+      Update-ControlPanel
+      $eventArgs.Handled = $true
+    })
+  }
 
   $tokenCanvas = New-Object System.Windows.Controls.Canvas
   [System.Windows.Controls.Grid]::SetRow($tokenCanvas, 2)
@@ -1844,15 +1910,27 @@ function Run-Overlay {
   $controlLogRow = New-ControlRow 7 $logLabel "›"
   $controlExitRow = New-ControlRow 8 $exitLabel "" "#FF6B62"
   $versionText = New-Object System.Windows.Controls.TextBlock
-  $versionText.Text = "v1.3.0"; $versionText.Foreground = New-Brush "#65717A"; $versionText.FontSize = 9
+  $versionText.Text = "v1.4.0"; $versionText.Foreground = New-Brush "#65717A"; $versionText.FontSize = 9
   $versionText.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
   $versionText.VerticalAlignment = [System.Windows.VerticalAlignment]::Bottom
   [System.Windows.Controls.Grid]::SetRow($versionText, 9); [void]$controlGrid.Children.Add($versionText)
 
   function Update-ControlPanel {
-    $remaining = if ($script:UsageState.Available -and $null -ne $script:UsageState.SecondaryRemaining) { [double]$script:UsageState.SecondaryRemaining } elseif ($script:UsageState.Available -and $null -ne $script:UsageState.PrimaryRemaining) { [double]$script:UsageState.PrimaryRemaining } else { $null }
     $status.Text = if ($script:Language -eq "en") { "● Running" } else { U "\u25cf \u8fd0\u884c\u4e2d" }
-    $controlLabel.Text = if ($script:Language -eq "en") { "7-day remaining" } else { U "7 \u5929\u5269\u4f59" }
+    foreach ($key in @("5h", "7d")) {
+      $view = $usageViews[$key]
+      $usageChoices[$key].ToolTip = if ($script:Language -eq "en") { "Show this quota in the pet overlay" } else { U "\u5728\u5ba0\u7269\u65c1\u7684\u60ac\u6d6e\u7a97\u663e\u793a\u6b64\u989d\u5ea6" }
+      $windowUsage = Get-WindowUsage -Usage $script:UsageState -Seconds $(if ($key -eq "5h") { 18000 } else { 604800 })
+      $view.Label.Text = if ($key -eq "5h") { if ($script:Language -eq "en") { "5-hour remaining" } else { U "5 \u5c0f\u65f6\u5269\u4f59" } } else { if ($script:Language -eq "en") { "7-day remaining" } else { U "7 \u5929\u5269\u4f59" } }
+      $view.Label.Foreground = New-Brush $(if ($script:OverlayWindow -eq $key) { "#43E6A8" } else { "#98A4AC" })
+      $view.Percent.Text = if ($null -ne $windowUsage) { "{0:N0}%" -f $windowUsage.Remaining } else { "--%" }
+      $view.Fill.Width = if ($null -ne $windowUsage) { 1.26 * $windowUsage.Remaining } else { 0 }
+      $view.Fill.Background = New-Brush $(if ($null -ne $windowUsage) { Get-UsageColor $windowUsage.Remaining } else { "#65717A" })
+      $view.Reset.Text = if ($null -ne $windowUsage -and $null -ne $windowUsage.ResetAt) {
+        if ($key -eq "5h") { ([datetime]$windowUsage.ResetAt).ToString("HH:mm") + $(if ($script:Language -eq "en") { " reset" } else { U " \u91cd\u7f6e" }) }
+        else { ([datetime]$windowUsage.ResetAt).ToString("MM/dd HH:mm") + $(if ($script:Language -eq "en") { " reset" } else { U " \u91cd\u7f6e" }) }
+      } else { if ($script:Language -eq "en") { "Unavailable" } else { U "\u6682\u4e0d\u53ef\u7528" } }
+    }
     $tokenHeading.Text = if ($script:Language -eq "en") { "Token activity" } else { "Token " + (U "\u6d3b\u52a8") }
     $todayLabel.Text = if ($script:Language -eq "en") { "Today" } else { U "\u4eca\u65e5" }
     $estimateText.Text = if ($script:Language -eq "en") { "Local estimate" } else { U "\u672c\u673a\u4f30\u7b97" }
@@ -1871,9 +1949,6 @@ function Run-Overlay {
     $startupItem.Text = if ($script:Language -eq "en") { "Start with Windows" } else { U "\u5f00\u673a\u81ea\u52a8\u542f\u52a8" }
     $logItem.Text = if ($script:Language -eq "en") { "View log" } else { U "\u67e5\u770b\u65e5\u5fd7" }
     $exitItem.Text = if ($script:Language -eq "en") { "Exit" } else { U "\u9000\u51fa" }
-    $controlPercent.Text = if ($null -ne $remaining) { "{0:N0}%" -f $remaining } else { "--%" }
-    $controlArc.Stroke = New-Brush (Get-UsageColor $remaining)
-    Set-ArcPath -Path $controlArc -CenterX 270 -CenterY 42 -Radius 28 -Percent $remaining
     $todayPrefix = if ($script:TokenUsageState.TodayEstimated) { "~" } else { "" }
     $todayTokenText.Text = if ($script:TokenUsageState.Available) { $todayPrefix + (Format-CompactTokenCount $script:TokenUsageState.TodayTokens) } else { "--" }
     $estimateText.Visibility = if ($script:TokenUsageState.TodayEstimated -and $script:TokenUsageState.Available) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Hidden }
