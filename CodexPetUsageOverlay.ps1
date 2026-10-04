@@ -166,7 +166,7 @@ function Install-TaskScheduler {
     return
   }
   Write-Output ("Installed Task Scheduler task: {0}" -f $TaskName)
-  Write-Output "The task starts the overlay when you sign in; it will follow the Codex pet when Codex is opened."
+  Write-Output "The task starts the background listener at login; tray and usage polling activate only while Codex Desktop is running."
 }
 
 function Uninstall-TaskScheduler {
@@ -303,26 +303,19 @@ function Get-NativeWindowList {
   return @($found)
 }
 
+function Test-CodexDesktopProcess {
+  param($Process)
+  if ($Process.ProcessName -notin @('Codex', 'ChatGPT')) { return $false }
+  try {
+    $info = $Process.MainModule.FileVersionInfo
+    return ($info.ProductName -eq 'Codex' -and $info.OriginalFilename -eq 'chrome.exe')
+  } catch { return $false }
+}
+
 function Get-CodexProcessIds {
-  $result = New-Object 'System.Collections.Generic.HashSet[int]'
-  foreach ($process in (Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match 'codex' })) {
-    [void]$result.Add([int]$process.Id)
+  foreach ($process in (Get-Process -Name Codex,ChatGPT -ErrorAction SilentlyContinue)) {
+    if (Test-CodexDesktopProcess $process) { [int]$process.Id }
   }
-  $cb = [CodexPetUsageOverlayNative+EnumWindowsProc]{
-    param($hwnd, $lparam)
-    if ([CodexPetUsageOverlayNative]::IsWindowVisible($hwnd)) {
-      $title = New-Object System.Text.StringBuilder 256
-      [void][CodexPetUsageOverlayNative]::GetWindowText($hwnd, $title, 256)
-      if ($title.ToString() -match '^codex($|\s)') {
-        $procId = 0
-        [void][CodexPetUsageOverlayNative]::GetWindowThreadProcessId($hwnd, [ref]$procId)
-        [void]$result.Add([int]$procId)
-      }
-    }
-    return $true
-  }
-  [void][CodexPetUsageOverlayNative]::EnumWindows($cb, [IntPtr]::Zero)
-  return @($result)
 }
 
 function Select-PetWindowCandidate {
@@ -384,6 +377,7 @@ function Get-WindowMonitorRect {
 function Build-PetRectFromHwnd {
   param($Hwnd)
   if ($null -eq $Hwnd -or [IntPtr]$Hwnd -eq [IntPtr]::Zero) { return $null }
+  if (-not [CodexPetUsageOverlayNative]::IsWindowVisible([IntPtr]$Hwnd)) { return $null }
   $rect = [CodexPetUsageOverlayNative+RECT]::new()
   if (-not [CodexPetUsageOverlayNative]::GetWindowRect([IntPtr]$Hwnd, [ref]$rect)) { return $null }
   $width = [double]($rect.Right - $rect.Left)
@@ -426,14 +420,14 @@ function Get-LivePetRect {
     $script:TrackedPetHwnd = [IntPtr]::Zero
   }
   $window = Find-PetWindow
-  if ($null -eq $window) { return $null }
+  if ($null -eq $window) {
+    # New Desktop builds may render the avatar without a separate small HWND.
+    # Get-PetRect requires the explicit open flag; the Desktop identity check
+    # above prevents CLI/private app-server processes from reviving this anchor.
+    return Get-PetRect
+  }
   $script:TrackedPetHwnd = $window.HWND
   return Build-PetRectFromHwnd -Hwnd $window.HWND
-}
-
-function Test-CanUsePersistedPetRect {
-  param([bool]$CodexRunning, $PersistedPetRect)
-  return ($CodexRunning -and $null -ne $PersistedPetRect)
 }
 
 function Invoke-FindPetDiagnostic {
@@ -460,6 +454,11 @@ function Invoke-FindPetDiagnostic {
     Write-Output ("Picked: HWND={0} pos=({1},{2}) size={3}x{4}" -f $picked.HWND, [int]$picked.X, [int]$picked.Y, [int]$picked.Width, [int]$picked.Height)
   } else {
     Write-Output "Picked: none"
+    if ($null -ne $anchor) {
+      Write-Output "Tracking mode: saved-coordinate compatibility (Desktop running, pet marked open; state updates may lag)."
+    } else {
+      Write-Output "Tracking mode: unavailable (no live pet window or open-state anchor)."
+    }
   }
 }
 
@@ -856,7 +855,7 @@ function Start-UsageAppServer {
     $script:UsageAppServerProcess = $process
     $script:UsageAppServerRequestId = 0
     $null = Invoke-UsageAppServerRequest -Method "initialize" -Params @{
-      clientInfo = @{ name = "codex_usage_remaining"; title = $DisplayName; version = "1.4.0" }
+      clientInfo = @{ name = "codex_usage_remaining"; title = $DisplayName; version = "1.4.1" }
       capabilities = @{ experimentalApi = $true }
     }
     Send-UsageAppServerMessage -Message @{ method = "initialized"; params = @{} }
@@ -1152,8 +1151,6 @@ con.close()
   Assert-True (Test-PointInRect -Point ([PSCustomObject]@{ X = 15; Y = 25 }) -Rect $rect) "cursor inside pet rect should show"
   Assert-True (-not (Test-PointInRect -Point ([PSCustomObject]@{ X = 50; Y = 25 }) -Rect $rect)) "cursor outside pet rect should not show"
   Assert-True (Test-PointInRect -Point ([PSCustomObject]@{ X = 50; Y = 25 }) -Rect $rect -Padding 10) "padding should catch near-pet cursor"
-  Assert-True (-not (Test-CanUsePersistedPetRect -CodexRunning $false -PersistedPetRect $rect)) "persisted pet position must not show while Codex is closed"
-  Assert-True (Test-CanUsePersistedPetRect -CodexRunning $true -PersistedPetRect $rect) "persisted pet position may be used while Codex is running"
   $now = Get-Date
   $firstUntil = Get-OverlayShowUntil -CursorInPet $true -CursorWasInPet $false -CurrentShowUntil ([datetime]::MinValue) -Now $now -Seconds 10
   Assert-True (Test-ShouldShowOverlay -ShowUntilAt $firstUntil -Now $now.AddSeconds(9)) "entering pet should show for 10 seconds"
@@ -1213,6 +1210,7 @@ con.close()
 
 function Show-Status {
   $running = Get-RunningOverlayProcess
+  $desktopRunning = @(Get-CodexProcessIds).Count -gt 0
   $state = Read-CodexState
   $taskInstalled = Test-AutostartEnabled
   $appServerCandidate = Find-StandaloneCodexBinary
@@ -1226,6 +1224,8 @@ function Show-Status {
   }
   [PSCustomObject]@{
     Running = $null -ne $running
+    DesktopRunning = $desktopRunning
+    Mode = if ($null -eq $running) { 'Stopped' } elseif ($desktopRunning) { 'Following Codex' } else { 'Waiting for Codex' }
     ProcessId = if ($running) { $running.ProcessId } else { $null }
     PidFile = $PidPath
     LogFile = $LogPath
@@ -1405,6 +1405,7 @@ function Run-Overlay {
   }
 
   function Refresh-Usage {
+    if (@(Get-CodexProcessIds).Count -eq 0) { return }
     $script:UsageState = Get-Usage
     $script:TokenUsageState = Get-TokenUsage
     if (-not $script:UsageState.Available) {
@@ -1430,13 +1431,6 @@ function Run-Overlay {
       return
     }
     $pet = Get-LivePetRect
-    if ($null -eq $pet) {
-      $persistedPet = Get-PetRect
-      $codexRunning = @(Get-CodexProcessIds).Count -gt 0
-      if (Test-CanUsePersistedPetRect -CodexRunning $codexRunning -PersistedPetRect $persistedPet) {
-        $pet = $persistedPet
-      }
-    }
     if ($null -eq $pet) {
       $script:ShowOverlayUntil = [datetime]::MinValue
       $script:CursorWasInPet = $false
@@ -1523,11 +1517,9 @@ function Run-Overlay {
       })
     }
   })
-  # Show then hide once at startup so the HwndSource is created and SourceInitialized
-  # (click-through + hotkey registration) runs immediately, even while the overlay stays
-  # hidden until first hover. The window is transparent and NOACTIVATE, so no visible flash.
-  $window.Show()
-  $window.Hide()
+  # Create the native handle without briefly showing a card during idle startup.
+  $hiddenWindowHelper = New-Object System.Windows.Interop.WindowInteropHelper -ArgumentList $window
+  [void]$hiddenWindowHelper.EnsureHandle()
 
   # System tray management keeps everyday controls out of the project folder.
   $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
@@ -1556,7 +1548,7 @@ function Run-Overlay {
   [void]$trayMenu.Items.Add($pauseItem)
 
   $startupItem = New-Object System.Windows.Forms.ToolStripMenuItem
-  $startupItem.Text = if ($script:Language -eq "en") { "Start with Windows" } else { U "\u5f00\u673a\u81ea\u52a8\u542f\u52a8" }
+  $startupItem.Text = if ($script:Language -eq "en") { "Follow Codex" } else { U "\u968f Codex \u542f\u52a8" }
   $startupItem.Checked = Test-AutostartEnabled
   $startupItem.Add_Click({
     try {
@@ -1596,7 +1588,7 @@ function Run-Overlay {
     $trayIcon.Icon = [System.Drawing.SystemIcons]::Information
   }
   $trayIcon.ContextMenuStrip = $trayMenu
-  $trayIcon.Visible = $true
+  $trayIcon.Visible = $false
 
   # Compact WPF control panel opened from the tray icon. If a host-specific WPF
   # incompatibility occurs, keep the tray app alive with the classic menu.
@@ -1873,7 +1865,7 @@ function Run-Overlay {
   }
 
   $overlayLabel = if ($script:Language -eq "en") { "Overlay" } else { U "\u60ac\u6d6e\u7a97" }
-  $startupLabel = if ($script:Language -eq "en") { "Start with Windows" } else { U "\u5f00\u673a\u81ea\u52a8\u542f\u52a8" }
+  $startupLabel = if ($script:Language -eq "en") { "Follow Codex" } else { U "\u968f Codex \u542f\u52a8" }
   $startupValue = if ($script:AutostartEnabled) { "ON" } else { "OFF" }
   $languageLabel = if ($script:Language -eq "en") { "Language" } else { U "\u754c\u9762\u8bed\u8a00" }
   $languageValue = if ($script:Language -eq "en") { "English  ›" } else { U "\u4e2d\u6587  \u203a" }
@@ -1910,7 +1902,7 @@ function Run-Overlay {
   $controlLogRow = New-ControlRow 7 $logLabel "›"
   $controlExitRow = New-ControlRow 8 $exitLabel "" "#FF6B62"
   $versionText = New-Object System.Windows.Controls.TextBlock
-  $versionText.Text = "v1.4.0"; $versionText.Foreground = New-Brush "#65717A"; $versionText.FontSize = 9
+  $versionText.Text = "v1.4.1"; $versionText.Foreground = New-Brush "#65717A"; $versionText.FontSize = 9
   $versionText.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
   $versionText.VerticalAlignment = [System.Windows.VerticalAlignment]::Bottom
   [System.Windows.Controls.Grid]::SetRow($versionText, 9); [void]$controlGrid.Children.Add($versionText)
@@ -1936,7 +1928,7 @@ function Run-Overlay {
     $estimateText.Text = if ($script:Language -eq "en") { "Local estimate" } else { U "\u672c\u673a\u4f30\u7b97" }
     $last7Label.Text = if ($script:Language -eq "en") { "Last 7d" } else { U "\u8fd1 7 \u5929" }
     $overlayRow.Label.Text = if ($script:Language -eq "en") { "Overlay" } else { U "\u60ac\u6d6e\u7a97" }
-    $startupRow.Label.Text = if ($script:Language -eq "en") { "Start with Windows" } else { U "\u5f00\u673a\u81ea\u52a8\u542f\u52a8" }
+    $startupRow.Label.Text = if ($script:Language -eq "en") { "Follow Codex" } else { U "\u968f Codex \u542f\u52a8" }
     $languageRow.Label.Text = if ($script:Language -eq "en") { "Language" } else { U "\u754c\u9762\u8bed\u8a00" }
     $languageRow.Value.Text = if ($script:Language -eq "en") { "English  ›" } else { U "\u4e2d\u6587  \u203a" }
     $controlLogRow.Label.Text = if ($script:Language -eq "en") { "View log" } else { U "\u67e5\u770b\u65e5\u5fd7" }
@@ -1946,7 +1938,7 @@ function Run-Overlay {
     } else {
       if ($script:Language -eq "en") { "Pause overlay" } else { U "\u6682\u505c\u60ac\u6d6e\u7a97" }
     }
-    $startupItem.Text = if ($script:Language -eq "en") { "Start with Windows" } else { U "\u5f00\u673a\u81ea\u52a8\u542f\u52a8" }
+    $startupItem.Text = if ($script:Language -eq "en") { "Follow Codex" } else { U "\u968f Codex \u542f\u52a8" }
     $logItem.Text = if ($script:Language -eq "en") { "View log" } else { U "\u67e5\u770b\u65e5\u5fd7" }
     $exitItem.Text = if ($script:Language -eq "en") { "Exit" } else { U "\u9000\u51fa" }
     $todayPrefix = if ($script:TokenUsageState.TodayEstimated) { "~" } else { "" }
@@ -2056,8 +2048,36 @@ function Run-Overlay {
   })
   $petTimer = New-Object System.Windows.Threading.DispatcherTimer
   $petTimer.Interval = [TimeSpan]::FromMilliseconds($PetPollMs)
+  $script:DesktopActive = $null
+  $script:NextDesktopCheckAt = [datetime]::MinValue
+  function Sync-DesktopPresence {
+    param([bool]$DesktopRunning)
+    if ($null -ne $script:DesktopActive -and $script:DesktopActive -eq $DesktopRunning) { return }
+    $script:DesktopActive = $DesktopRunning
+    if ($DesktopRunning) {
+      $trayIcon.Visible = $true
+      $petTimer.Interval = [TimeSpan]::FromMilliseconds($PetPollMs)
+      $usageTimer.Start()
+      Refresh-Usage
+    } else {
+      $usageTimer.Stop()
+      $petTimer.Interval = [TimeSpan]::FromSeconds(2)
+      $window.Hide()
+      if ($null -ne $controlWindow) { $controlWindow.Hide() }
+      $trayIcon.Visible = $false
+      $script:ShowOverlayUntil = [datetime]::MinValue
+      $script:CursorWasInPet = $false
+      $script:TrackedPetHwnd = [IntPtr]::Zero
+      Stop-UsageAppServer
+    }
+  }
   $petTimer.Add_Tick({
     try {
+      if ((Get-Date) -ge $script:NextDesktopCheckAt) {
+        Sync-DesktopPresence -DesktopRunning (@(Get-CodexProcessIds).Count -gt 0)
+        $script:NextDesktopCheckAt = (Get-Date).AddSeconds(2)
+      }
+      if (-not $script:DesktopActive) { return }
       if ($window.IsVisible -and ((Get-Date) - $script:LastTextUpdateAt).TotalSeconds -ge 1) {
         Update-Text
         $script:LastTextUpdateAt = Get-Date
@@ -2083,11 +2103,11 @@ function Run-Overlay {
       $trayIcon.Dispose()
     }
   })
-  $usageTimer.Start()
   $petTimer.Start()
-  Refresh-Usage
-  Update-Overlay
-  [void]$app.Run($window)
+  Sync-DesktopPresence -DesktopRunning (@(Get-CodexProcessIds).Count -gt 0)
+  if ($script:DesktopActive) { Update-Overlay }
+  $app.MainWindow = $window
+  [void]$app.Run()
 }
 
 if (-not ("CodexPetUsageOverlayNative" -as [type])) {

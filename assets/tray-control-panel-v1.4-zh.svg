@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="438" height="650" viewBox="0 0 438 650" role="img" aria-label="Codex Usage Remaining 1.4.0 zh tray panel preview">
+<svg xmlns="http://www.w3.org/2000/svg" width="438" height="650" viewBox="0 0 438 650" role="img" aria-label="Codex Usage Remaining 1.4.1 zh tray panel preview">
   <style>
     text { font-family: 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif; fill: #F5F2E8; }
     .title { font-size: 23px; font-weight: 700; }
@@ -56,13 +56,13 @@
 
   <text x="28" y="423" class="row">悬浮窗</text>
   <rect x="364" y="405" width="46" height="26" rx="13" fill="#43E6A8"/><circle cx="399" cy="418" r="9" fill="#F5F2E8"/>
-  <text x="28" y="462" class="row">开机自动启动</text>
+  <text x="28" y="462" class="row">随 Codex 启动</text>
   <rect x="364" y="444" width="46" height="26" rx="13" fill="#43E6A8"/><circle cx="399" cy="457" r="9" fill="#F5F2E8"/>
   <text x="28" y="501" class="row">界面语言</text>
   <text x="356" y="501" class="label">中文 ›</text>
   <line x1="24" y1="516" x2="414" y2="516" stroke="#242A2E"/>
   <text x="28" y="541" class="row">查看日志</text><text x="405" y="541" class="label">›</text>
   <text x="28" y="580" class="row" style="fill:#FF675F">退出程序</text>
-  <text x="383" y="607" class="date">v1.4.0</text>
+  <text x="383" y="607" class="date">v1.4.1</text>
 
 </svg>

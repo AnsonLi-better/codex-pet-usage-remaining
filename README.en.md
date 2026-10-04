@@ -5,7 +5,7 @@
   <img src="https://img.shields.io/badge/license-MIT-43E6A8" alt="MIT License"/>
   <img src="https://img.shields.io/badge/platform-Windows-0078d6" alt="Windows"/>
   <img src="https://img.shields.io/badge/powershell-5.1%2B-5391FE" alt="PowerShell 5.1+"/>
-  <img src="https://img.shields.io/badge/release-v1.4.0-2ea44f" alt="v1.4.0"/>
+  <img src="https://img.shields.io/badge/release-v1.4.1-2ea44f" alt="v1.4.1"/>
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@ An open-source Windows companion app: hover the Codex pet to see a remaining-usa
   <img src="assets/tray-token-tooltip-v1.4-en.svg" width="280" alt="1.4 English panel illustration showing the daily bar tooltip"/>
 </p>
 
-<p align="center"><sub>1.4.0 interface illustration; values are examples. Click the notification-area icon to open the panel; hover a daily bar to see its UTC date, full token count, and data source.</sub></p>
+<p align="center"><sub>1.4.1 interface illustration; values are examples. Click the notification-area icon to open the panel; hover a daily bar to see its UTC date, full token count, and data source.</sub></p>
 
 ## ⬇️ Install
 
@@ -42,7 +42,7 @@ The installer is the recommended option. You do not need to open the project fol
 
 If you are unsure, choose the **complete installer**. If WebSetup cannot download the component, the app still installs and uses today's local estimate. Run WebSetup again later or install the complete edition to finish official statistics.
 
-After installation, a `>_` icon appears in the Windows notification area. If it is not visible, expand the `^` overflow area on the taskbar.
+After installation, the app waits for Codex Desktop in the background. Opening Codex shows a `>_` icon in the Windows notification area. If it is not visible, expand the `^` overflow area on the taskbar.
 
 To uninstall, use Windows **Settings → Apps** or **Uninstall Codex Usage Remaining** in the Start menu.
 
@@ -53,7 +53,7 @@ Click the `>_` notification-area icon to open the control panel:
 - **Quota progress bars**: show the 5-hour and 7-day remaining percentages and their reset times side by side. Click either bar to choose what the pet overlay displays; your choice is saved.
 - **Token activity**: today's tokens, a bar trend for the latest seven complete UTC dates, and their total. Hover a bar to see its date, full value, and data source.
 - **Overlay**: pause or resume the usage card with a slide switch.
-- **Start with Windows**: choose whether the app runs after signing in.
+- **Follow Codex**: enable the login listener. While Codex Desktop is closed, the tray and overlay stay hidden, no quota requests or token scans run, and the private statistics process is stopped. Opening Codex resumes the app. One low-frequency background process remains waiting.
 - **Language**: hover this row and select Chinese or EN. The choice is saved automatically.
 - **View log**: open the runtime log for usage and window-detection troubleshooting.
 - **Exit**: stop the current background instance completely.
@@ -119,7 +119,7 @@ The internal `CodexPetUsageOverlay` directory name is retained for upgrade compa
 
 ## ❓ Troubleshooting
 
-1. **No icon after installation?** Check the taskbar's `^` notification-area overflow; if still missing, launch **Codex Usage Remaining** again from the Start menu.
+1. **No icon after installation?** Open Codex Desktop first, then check the taskbar's `^` notification-area overflow; if still missing, launch **Codex Usage Remaining** again from the Start menu.
 2. **The tray icon is visible, but the overlay is not?** Make sure `/pet` is open in Codex Desktop, the **Overlay** switch is enabled, and then hover the pet.
 3. **Usage is unavailable?** This usually means the live endpoint is temporarily unavailable. Click the tray icon and select **View log**; the app also attempts its local-log fallback automatically.
 4. **Why does a token value start with `~`?** `~` means the value is estimated from local Codex session logs rather than an official account total. It includes only readable sessions on this computer, so it may differ slightly from the final total.
@@ -127,9 +127,9 @@ The internal `CodexPetUsageOverlay` directory name is retained for upgrade compa
 6. **Why is a daily bar missing?** A missing bar means no usable record was available for that date; it does not confirm zero usage. Hover any populated bar to see its full token count and data source.
 7. **Why is there another Codex process in Task Manager?** The app starts the private app-server configured during installation to read official daily totals. It does not listen on a public port, communicates only as needed in the background, and exits with this app. The local estimate itself does not require it.
 8. **What if component setup fails in WebSetup?** The app still provides the remaining quota and today's local estimate. Run WebSetup again after the network is restored, or install the complete edition, to finish the component.
-9. **How do I disable automatic startup?** Click the tray icon and turn off **Start with Windows**. You do not need to open the installation folder.
+9. **How do I disable automatic following?** While Codex is running, turn off **Follow Codex** in the tray panel to remove the login listener. Choose **Exit** to end the current background process immediately. Reopen it from the Start menu when needed.
 10. **How do I reopen it after exiting?** Open the Windows Start menu and search for **Codex Usage Remaining**.
-11. **Why does the tray icon appear before Codex is open?** The background controller starts at Windows sign-in so its tray controls are available. The overlay next to the pet appears only while Codex `/pet` is available.
+11. **What happens while Codex is closed?** The background listener checks for Codex Desktop every two seconds. The tray and floating card are hidden and the private statistics process is stopped. CLI and app-server processes do not count as Desktop, and saved pet coordinates alone cannot display the card.
 
 ## 🛠️ Run from source (developers and advanced users)
 
@@ -187,7 +187,7 @@ Common options:
 ## 🧠 How it works
 
 - **Hover detection**: periodically checks the cursor and shows the card when it enters the pet area.
-- **Window tracking**: enumerates Codex windows through Win32 and identifies the pet window, falling back to coordinates in local Codex state.
+- **Window tracking**: validates Codex Desktop executable metadata and prefers a visible pet window through Win32. For newer builds without a separate small window, saved coordinates are used only while Desktop is running and the pet is marked open. Delayed state updates can delay position or visibility changes.
 - **Usage retrieval**: uses the local Codex login for 5-hour and 7-day remaining quotas, identified by window duration; incrementally reads session `token_count` events for today's estimate, and uses a private app-server for official daily totals when available.
 - **Rendering**: uses Windows PowerShell 5.1, WPF, and Windows Forms for the overlay, tray icon, and control panel.
 
@@ -204,6 +204,8 @@ Start.bat / Stop.bat           source start and stop
 Status.bat                     status diagnostics
 assets/                        release icons, previews, and design explorations
 AGENT_SETUP.md                 agent setup instructions
+tests/                         Desktop detection, pet compatibility, and idle-startup regressions
+Generate-ReadmePreviews.ps1     bilingual interface illustration generator
 ```
 
 ## ⚠️ Known limitations
@@ -212,6 +214,7 @@ AGENT_SETUP.md                 agent setup instructions
 - Today's token value is a local estimate from this computer and does not include complete account usage from other devices.
 - WebSetup downloads the official statistics component during first installation; the complete installer includes it. Today's estimate and available 5-hour and 7-day remaining quotas still work if the download fails.
 - Pet-window detection uses size and position heuristics and may select the wrong window in edge cases.
+- Without a separate pet window, detection relies on Codex's saved open state and position. Stale state can briefly use an old position; this compatibility path is disabled when Codex Desktop exits.
 - The tray and WPF control panel still require manual UI verification in a real Windows desktop session.
 
 ## 📄 License

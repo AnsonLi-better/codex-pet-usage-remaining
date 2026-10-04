@@ -25,6 +25,8 @@ Open [Releases](https://github.com/AnsonLi-better/codex-pet-usage-remaining/rele
 
 ## Alternative: run from source
 
+Since 1.4.1, starting the app without Codex Desktop enters background waiting mode. No tray, floating card, usage request, or token scan is active in this mode. The listener checks every two seconds and resumes when Desktop opens. Closing Desktop stops the statistics process and hides the UI again. The tray's **Follow Codex** switch controls login startup of this listener; **Exit** stops the current listener.
+
 Only use the following steps when the user wants a source installation or needs to debug the app. Source startup depends on the current folder path; moving the folder later requires running `Install.bat` again.
 
 ### Step 1 — Download
@@ -88,7 +90,7 @@ Manual example: `powershell -NoProfile -ExecutionPolicy Bypass -File .\CodexPetU
 
 - **No overlay card**: `/pet` must be open, and the cursor must be over the pet. The card only shows while hovering (about 10 seconds).
 - **Shows `--%` / `--`**: the selected quota window may be missing from the live response. The other quota is not substituted; check the tray panel and log.
-- **Overlay doesn't follow the pet**: run `FindPet` and read its output to diagnose pet-window detection.
+- **Overlay doesn't follow the pet**: run `FindPet` and read its output to diagnose pet-window detection. New Desktop builds may have no small native pet window; while Desktop is running and the pet is marked open, the app uses saved coordinates instead. Stale Codex state can delay tracking.
 
 ## Safety rules
 
