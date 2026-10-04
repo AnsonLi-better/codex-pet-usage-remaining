@@ -16,7 +16,7 @@ function New-Preview {
   $last7 = if ($isEnglish) { "Last 7d" } else { "近 7 天" }
   $estimate = if ($isEnglish) { "Local estimate" } else { "本机估算" }
   $overlay = if ($isEnglish) { "Overlay" } else { "悬浮窗" }
-  $startup = if ($isEnglish) { "Start with Windows" } else { "开机自动启动" }
+  $startup = if ($isEnglish) { "Follow Codex" } else { "随 Codex 启动" }
   $languageLabel = if ($isEnglish) { "Language" } else { "界面语言" }
   $languageChoice = if ($isEnglish) { "English ›" } else { "中文 ›" }
   $log = if ($isEnglish) { "View log" } else { "查看日志" }
@@ -34,7 +34,7 @@ function New-Preview {
   }
 
   $svg = @"
-<svg xmlns="http://www.w3.org/2000/svg" width="438" height="650" viewBox="0 0 438 650" role="img" aria-label="Codex Usage Remaining 1.4.0 $Language tray panel preview">
+<svg xmlns="http://www.w3.org/2000/svg" width="438" height="650" viewBox="0 0 438 650" role="img" aria-label="Codex Usage Remaining 1.4.1 $Language tray panel preview">
   <style>
     text { font-family: 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif; fill: #F5F2E8; }
     .title { font-size: 23px; font-weight: 700; }
@@ -99,7 +99,7 @@ function New-Preview {
   <line x1="24" y1="516" x2="414" y2="516" stroke="#242A2E"/>
   <text x="28" y="541" class="row">$log</text><text x="405" y="541" class="label">›</text>
   <text x="28" y="580" class="row" style="fill:#FF675F">$exit</text>
-  <text x="383" y="607" class="date">v1.4.0</text>
+  <text x="383" y="607" class="date">v1.4.1</text>
 $tooltipMarkup
 </svg>
 "@
